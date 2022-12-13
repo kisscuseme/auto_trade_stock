@@ -20,6 +20,7 @@ def drop_table():
     global cur
     cur.execute("DROP TABLE trade_data")
 
+# 회사코드, 회사명, 기준년도, 분기, 매출액, 영업이익, 법인세차감전 순이익, 당기순이익, 가능한 많은 정보
 def create_table():
     conn.execute('CREATE TABLE trade_data(corp_code TEXT, date TEXT)')
     conn.execute('CREATE INDEX trade_data_idx1 ON trade_data(corp_code, date)')
