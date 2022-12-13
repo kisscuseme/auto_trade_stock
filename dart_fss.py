@@ -4,9 +4,24 @@ import xmltodict
 from io import BytesIO
 from dotenv import load_dotenv
 import os
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+import datetime
+import time
+from bs4 import BeautifulSoup
+
 load_dotenv()
 
 crtfc_key = os.getenv('CRTFC_KEY')
+
+user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
+
+options = webdriver.ChromeOptions()
+options.add_argument('--headless')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('user-agent={0}'.format(user_agent))
+browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
 # 기업 코드 ex) [{'corp_code': '00126380', 'corp_name': '삼성전자', 'stock_code': '005930', 'modify_date': '20220509'}]
 def get_corp_code(name=None, match=None):
@@ -35,7 +50,7 @@ def get_corp_code(name=None, match=None):
     return result
 
 # fs_div = CFS:연결재무제표, OFS:재무제표, sj_div = BS:재무상태표, IS:손익계산서
-def get_corp_data(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='IS', all_div=False):
+def get_corp_data_by_api(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='IS', all_div=False):
     global crtfc_key
     url = 'https://opendart.fss.or.kr/api/fnlttMultiAcnt.json'
     params = {
@@ -54,10 +69,40 @@ def get_corp_data(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='IS', a
                 result.append(item)
     return result
 
+def get_corp_data_by_web(corp_code):
+    global browser
+    if browser is None:
+        browser = webdriver.Chrome(ChromeDriverManager().install(), options=webdriver.ChromeOptions())
+    now = datetime.datetime.now()
+    ymd_from = str(now.year-1) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
+    ymd_to = str(now.year) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
+    data = {
+        "textCrpCik": corp_code,
+        "startDate": ymd_from,
+        "endDate": ymd_to,
+        "publicType": "A001"
+    }
+    base_url = 'https://dart.fss.or.kr'
+    res = requests.post(base_url + '/dsab007/detailSearch.ax', data)
+    soup = BeautifulSoup(res.content, 'html.parser')
+    url = base_url + soup.select('.tL > a')[0].attrs['href']
+    browser.get(url)
+    browser.execute_script("document.querySelectorAll('#listTree a').forEach(function(item){if(item.textContent.indexOf(' 요약재무정보')>-1){item.click();}});")
+    time.sleep(0.5)
+    soup = BeautifulSoup(browser.page_source, 'html.parser')
+    url = base_url + soup.select('#ifrm')[0].attrs['src']
+    res = requests.get(url)
+    soup = BeautifulSoup(res.content, 'html.parser')
+    check_tags = soup.select('p, table')
+    return check_tags
+
 def insert_data():
     corp_code = get_corp_code('삼성전자', True)[0]
-    corp_data = get_corp_data(corp_code['corp_code'], '2021', '11011', all_div=True)
-    for data in corp_data:
-        print(data)
+    print(corp_code)
+    data = get_corp_data_by_web(corp_code['corp_code'])
+    print(data)
+    # corp_data = get_corp_data_by_api(corp_code['corp_code'], '2019', '11011', all_div=False)
+    # for data in corp_data:
+    #     print(data)
 
 insert_data()
