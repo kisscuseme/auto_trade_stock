@@ -35,7 +35,7 @@ def get_corp_code(name, match=None):
     return result
 
 # fs_div = CFS:연결재무제표, OFS:재무제표, sj_div = BS:재무상태표, IS:손익계산서
-def get_corp_data(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='BS'):
+def get_corp_data(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='IS'):
     global crtfc_key
     url = 'https://opendart.fss.or.kr/api/fnlttMultiAcnt.json'
     params = {
@@ -54,4 +54,5 @@ def get_corp_data(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div='BS'):
 
 corp_code = get_corp_code('삼성전자', True)[0]
 corp_data = get_corp_data(corp_code['corp_code'], '2021', '11011')
-print(corp_data)
+for data in corp_data:
+    print(data)
