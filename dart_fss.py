@@ -9,6 +9,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 import datetime
 import time
 from bs4 import BeautifulSoup
+import pandas as pd
 
 load_dotenv()
 
@@ -96,11 +97,31 @@ def get_corp_data_by_web(corp_code):
     check_tags = soup.select('p, table')
     return check_tags
 
+def get_column_name(table, col_name=None):
+    result = []
+    for col in table.columns.get_level_values(-1):
+        if col_name in str(col).replace(' ',''):
+            result.append(col)
+    return result
+
+def get_form_data(data):
+    result = []
+    for tag in data:
+        if tag.name == 'table':
+            dfs = pd.read_html(str(tag))
+            df = dfs[0]
+            target = get_column_name(df, '구분')
+            if len(target) > 0:
+                result.append(target[0])
+            
+    return result
+
 def insert_data():
     corp_code = get_corp_code('삼성전자', True)[0]
     print(corp_code)
     data = get_corp_data_by_web(corp_code['corp_code'])
-    print(data)
+    form_data = get_form_data(data)
+    print(form_data)
     # corp_data = get_corp_data_by_api(corp_code['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
     #     print(data)
