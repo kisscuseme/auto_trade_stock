@@ -104,21 +104,28 @@ def get_column_name(table, col_name=None):
             result.append(col)
     return result
 
+def get_row_name(table, col_name=None, row_name=None):
+    for i, col in enumerate(table[col_name]):
+        print(col)        
+
 def get_form_data(data):
     result = []
     for tag in data:
         if tag.name == 'table':
             dfs = pd.read_html(str(tag))
             df = dfs[0]
-            target = get_column_name(df, '구분')
-            if len(target) > 0:
-                result.append(target[0])
+            # target = get_column_name(df, '구분')
+            # if len(target) > 0:
+            #     result.append(target[0])
+            #     get_row_name(df, target[0])
+            print(tag)
+            break
             
     return result
 
 def insert_data():
     corp_code = get_corp_code('삼성전자', True)[0]
-    print(corp_code)
+    # print(corp_code)
     data = get_corp_data_by_web(corp_code['corp_code'])
     form_data = get_form_data(data)
     print(form_data)
