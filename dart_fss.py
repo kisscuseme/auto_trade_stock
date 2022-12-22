@@ -97,16 +97,19 @@ def get_corp_data_by_web(corp_code):
     check_tags = soup.select('p, table')
     return check_tags
 
-def get_column_name(table, col_name=None):
+def get_column_name(df, col_name=None):
     result = []
-    for col in table.columns.get_level_values(-1):
+    for col in df.columns.get_level_values(-1):
         if col_name in str(col).replace(' ',''):
             result.append(col)
     return result
 
-def get_row_name(table, col_name=None, row_name=None):
-    for i, col in enumerate(table[col_name]):
-        print(col)        
+def get_row_name(df, row_name=None):
+    for i in range(len(df)):
+        if df.iloc[i][0] == row_name:
+            # return df.iloc[i][df.iloc[i].index[1]]
+            return df.iloc[i][1]
+    return None
 
 def get_form_data(data):
     result = []
@@ -117,9 +120,9 @@ def get_form_data(data):
             # target = get_column_name(df, '구분')
             # if len(target) > 0:
             #     result.append(target[0])
-            #     get_row_name(df, target[0])
-            print(tag)
-            break
+            result = get_row_name(df,row_name='당기순이익')
+            if result is not None:
+                print(result)
             
     return result
 
