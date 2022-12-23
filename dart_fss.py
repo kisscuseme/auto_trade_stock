@@ -39,11 +39,11 @@ def get_corp_code(name=None, match=None):
 
     if match == True:
         for item in data_dict:
-            if name == item['corp_name']:
+            if name == item['corp_name'] and item['stock_code'] is not None:
                 result.append(item)
     elif match == False:
         for item in data_dict:
-            if name in item['corp_name']:
+            if name in item['corp_name'] and item['stock_code'] is not None:
                 result.append(item)
     else:
         for item in data_dict:
@@ -106,8 +106,9 @@ def get_column_name(df, col_name=None):
 
 def get_row_name(df, row_name=None):
     for i in range(len(df)):
-        if df.iloc[i][0] == row_name:
+        if not df.isna().iloc[i][0] and row_name in df.iloc[i][0].replace(' ',''):
             # return df.iloc[i][df.iloc[i].index[1]]
+            # print(df.iloc[i])
             return df.iloc[i][1]
     return None
 
@@ -117,12 +118,9 @@ def get_form_data(data):
         if tag.name == 'table':
             dfs = pd.read_html(str(tag))
             df = dfs[0]
-            # target = get_column_name(df, '구분')
-            # if len(target) > 0:
-            #     result.append(target[0])
-            result = get_row_name(df,row_name='당기순이익')
-            if result is not None:
-                print(result)
+            row = get_row_name(df,row_name='당기순이익')
+            if row is not None:
+                result.append(row)
             
     return result
 
