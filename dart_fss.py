@@ -24,6 +24,7 @@ options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
+row_name_list = ['당기순이익','영업이익','자본총계','부채총계']
 all_data = {}
 
 # 기업 코드 ex) [{'corp_code': '00126380', 'corp_name': '삼성전자', 'stock_code': '005930', 'modify_date': '20220509'}]
@@ -49,7 +50,8 @@ def get_corp_code(name=None, match=None):
                 result.append(item)
     else:
         for item in data_dict:
-            result.append(item)
+            if item['stock_code'] is not None:
+                result.append(item)
     return result
 
 # fs_div = CFS:연결재무제표, OFS:재무제표, sj_div = BS:재무상태표, IS:손익계산서
@@ -88,16 +90,20 @@ def get_corp_data_by_web(corp_code):
     base_url = 'https://dart.fss.or.kr'
     res = requests.post(base_url + '/dsab007/detailSearch.ax', data)
     soup = BeautifulSoup(res.content, 'html.parser')
-    url = base_url + soup.select('.tL > a')[0].attrs['href']
-    browser.get(url)
-    browser.execute_script("document.querySelectorAll('#listTree a').forEach(function(item){if(item.textContent.indexOf(' 요약재무정보')>-1){item.click();}});")
-    time.sleep(0.5)
-    soup = BeautifulSoup(browser.page_source, 'html.parser')
-    url = base_url + soup.select('#ifrm')[0].attrs['src']
-    res = requests.get(url)
-    soup = BeautifulSoup(res.content, 'html.parser')
-    check_tags = soup.select('p, table')
-    return check_tags
+    a_tag = soup.select('.tL > a')
+    if len(a_tag) > 0:
+        url = base_url + a_tag[0].attrs['href']
+        browser.get(url)
+        browser.execute_script("document.querySelectorAll('#listTree a').forEach(function(item){if(item.textContent.indexOf(' 요약재무정보')>-1){item.click();}});")
+        time.sleep(0.5)
+        soup = BeautifulSoup(browser.page_source, 'html.parser')
+        url = base_url + soup.select('#ifrm')[0].attrs['src']
+        res = requests.get(url)
+        soup = BeautifulSoup(res.content, 'html.parser')
+        check_tags = soup.select('p, table')
+        return check_tags
+    else:
+        return None
 
 def get_column_name(df, col_name=None):
     result = []
@@ -106,28 +112,41 @@ def get_column_name(df, col_name=None):
             result.append(col)
     return result
 
-def get_row_name(df, row_name=None):
+# 행 구분 값 가져오기
+def get_row_value(df, row_name=None, index=1):
     for i in range(len(df)):
         if not df.isna().iloc[i][0] and row_name in df.iloc[i][0].replace(' ',''):
-            # return df.iloc[i][df.iloc[i].index[1]]
-            # print(df.iloc[i])
-            return df.iloc[i][1]
+            return df.iloc[i][index]
     return None
 
-# 당기순이익, 영업이익 가져오기
-def get_form_data(data):
-    row_name_list = ['당기순이익','영업이익','자본총계','부채총계']
-    result = {
-        '재무제표': {
-            '연결': {},
-            '별도': {}
-        }
-    }
-    rowCount = 0
+def get_unit(web_data):
+    result = []
+    for tag in web_data:
+        select_tag = tag.select('td, p')
+        for unit in select_tag:
+            cond1 = '단위:' in unit.text.replace(' ','')
+            cond2 = '주당' not in unit.text.replace(' ','')
+            cond3 = '백만원' in unit.text.replace(' ','')
+            cond4 = '원' in unit.text.replace(' ','')
+            if cond1 and cond2:
+                if cond3:
+                    result.append(1000000)
+                elif cond4:
+                    result.append(1)
+                else:
+                    result.append(None)
+    return result
+
+
+# 연결, 별도 재무제표 구분
+def get_dvsn(web_data):
+    global row_name_list
     linkCount = 0
+    rowCount = 0
     dvsn_count = []
     dvsn = []
-    for tag in data:
+
+    for tag in web_data:
         if '연결' in tag.text:
             linkCount += 1
         if rowCount == len(row_name_list):
@@ -138,25 +157,39 @@ def get_form_data(data):
             dfs = pd.read_html(str(tag))
             df = dfs[0]
             for row_name in row_name_list:
-                    row = get_row_name(df,row_name=row_name)
+                    row = get_row_value(df,row_name=row_name)
                     if row is not None:
                         rowCount += 1
     if dvsn_count[0] > dvsn_count[1]:
         dvsn = ['연결','별도']
     else:
         dvsn = ['별도','연결']
+    return dvsn
+
+# 당기순이익, 영업이익 가져오기
+def get_custom_data(web_data):
+    global row_name_list
     rowCount = 0
-    for tag in data:
+    result = {
+        '재무제표': {
+            '연결': {},
+            '별도': {}
+        }
+    }
+    dvsn = get_dvsn(web_data)
+    unit = get_unit(web_data)
+
+    for tag in web_data:
         if tag.name == 'table':
             dfs = pd.read_html(str(tag))
             df = dfs[0]
             for row_name in row_name_list:
-                row = get_row_name(df,row_name=row_name)
+                row = get_row_value(df,row_name=row_name)
                 if row is not None:
                     if rowCount < len(row_name_list):
-                        result['재무제표'][dvsn[0]][row_name] = row
+                        result['재무제표'][dvsn[0]][row_name] = int(row) * unit[0]
                     else:
-                        result['재무제표'][dvsn[1]][row_name] = row
+                        result['재무제표'][dvsn[1]][row_name] = int(row) * unit[1]
                     rowCount += 1
 
             
@@ -164,20 +197,24 @@ def get_form_data(data):
 
 def insert_data():
     global all_data
-    corp_list = []
-    corp_list.append('삼성전자')
-    corp_list.append('한화생명')
-    corp_list.append('카카오')
-    for corp in corp_list:
-        corp_info = get_corp_code(corp, True)[0]
-        # print(corp_info)
-        data = get_corp_data_by_web(corp_info['corp_code'])
+    corp_list = get_corp_code()
+    # corp_list.append('삼성전자')
+    # corp_list.append('한화생명')
+    # corp_list.append('카카오')
+    for corp_info in corp_list:
+        print(corp_info)
+        web_data = get_corp_data_by_web(corp_info['corp_code'])
+        custom_data = {}
+        if web_data is not None:
+            custom_data = get_custom_data(web_data)
         all_data[corp_info['corp_code']] = {
             'name': corp_info['corp_name'],
             'stock_code': corp_info['stock_code'],
-            'data': get_form_data(data)
+            'data': custom_data
         }
+        time.sleep(0.5)
     print(all_data)
+
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
     #     print(data)
