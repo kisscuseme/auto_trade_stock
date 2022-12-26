@@ -94,11 +94,12 @@ def get_corp_data_by_web(corp_code):
     if len(a_tag) > 0:
         url = base_url + a_tag[0].attrs['href']
         browser.get(url)
-        browser.execute_script("document.querySelectorAll('#listTree a').forEach(function(item){if(item.textContent.indexOf(' 요약재무정보')>-1){item.click();}});")
+        browser.execute_script("document.querySelectorAll('#listTree a').forEach(function(item){if(item.textContent.indexOf('III. 재무에 관한 사항')>-1){item.click();}});")
         time.sleep(0.5)
         soup = BeautifulSoup(browser.page_source, 'html.parser')
         url = base_url + soup.select('#ifrm')[0].attrs['src']
         res = requests.get(url)
+        print(url)
         soup = BeautifulSoup(res.content, 'html.parser')
         check_tags = soup.select('p, table')
         return check_tags
@@ -127,11 +128,17 @@ def get_unit(web_data):
             cond1 = '단위:' in unit.text.replace(' ','')
             cond2 = '주당' not in unit.text.replace(' ','')
             cond3 = '백만원' in unit.text.replace(' ','')
-            cond4 = '원' in unit.text.replace(' ','')
+            cond4 = '천원' in unit.text.replace(' ','')
+            cond5 = 'USD' in unit.text.replace(' ','')
+            cond9 = '원' in unit.text.replace(' ','')
             if cond1 and cond2:
                 if cond3:
                     result.append(1000000)
                 elif cond4:
+                    result.append(1000)
+                elif cond5:
+                    result.append(0)
+                elif cond9:
                     result.append(1)
                 else:
                     result.append(None)
@@ -160,24 +167,27 @@ def get_dvsn(web_data):
                     row = get_row_value(df,row_name=row_name)
                     if row is not None:
                         rowCount += 1
-    if dvsn_count[0] > dvsn_count[1]:
-        dvsn = ['연결','별도']
+    if len(dvsn_count) == 4:
+        dvsn = ['연결','연결','별도','별도']
     else:
-        dvsn = ['별도','연결']
+        dvsn = ['연결','별도']
     return dvsn
 
 # 당기순이익, 영업이익 가져오기
 def get_custom_data(web_data):
     global row_name_list
     rowCount = 0
-    result = {
-        '재무제표': {
-            '연결': {},
-            '별도': {}
-        }
-    }
     dvsn = get_dvsn(web_data)
     unit = get_unit(web_data)
+    result = {
+        '재무제표': {}
+    }
+
+    for d in dvsn:
+        result['재무제표'][d] = {}
+
+    print(dvsn)
+    print(unit)
 
     for tag in web_data:
         if tag.name == 'table':
@@ -186,21 +196,17 @@ def get_custom_data(web_data):
             for row_name in row_name_list:
                 row = get_row_value(df,row_name=row_name)
                 if row is not None:
-                    if rowCount < len(row_name_list):
-                        result['재무제표'][dvsn[0]][row_name] = int(row) * unit[0]
-                    else:
-                        result['재무제표'][dvsn[1]][row_name] = int(row) * unit[1]
                     rowCount += 1
+                    if rowCount < len(dvsn)*len(row_name_list):
+                        result['재무제표'][dvsn[int(rowCount/row_name_list)]][row_name] = int(row) * unit[0]
 
             
     return result
 
 def insert_data():
     global all_data
-    corp_list = get_corp_code()
-    # corp_list.append('삼성전자')
-    # corp_list.append('한화생명')
-    # corp_list.append('카카오')
+    # corp_list = get_corp_code()
+    corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
     for corp_info in corp_list:
         print(corp_info)
         web_data = get_corp_data_by_web(corp_info['corp_code'])
@@ -212,7 +218,7 @@ def insert_data():
             'stock_code': corp_info['stock_code'],
             'data': custom_data
         }
-        time.sleep(0.5)
+        time.sleep(1)
     print(all_data)
 
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
