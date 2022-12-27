@@ -106,6 +106,19 @@ def get_corp_data_by_web(corp_code):
     else:
         return None
 
+def get_index_data(web_data):
+    result = []
+    for tag in web_data:
+        if tag.text != '':
+            result.append(
+                {
+                    'name': tag.name,
+                    'text': tag.text,
+                    'data': tag
+                }
+            )
+    return result
+
 def get_column_name(df, col_name=None):
     result = []
     for col in df.columns.get_level_values(-1):
@@ -210,16 +223,17 @@ def insert_data():
     for corp_info in corp_list:
         print(corp_info)
         web_data = get_corp_data_by_web(corp_info['corp_code'])
-        custom_data = {}
-        if web_data is not None:
-            custom_data = get_custom_data(web_data)
-        all_data[corp_info['corp_code']] = {
-            'name': corp_info['corp_name'],
-            'stock_code': corp_info['stock_code'],
-            'data': custom_data
-        }
-        time.sleep(1)
-    print(all_data)
+        print(get_index_data(web_data)[0])
+    #     custom_data = {}
+    #     if web_data is not None:
+    #         custom_data = get_custom_data(web_data)
+    #     all_data[corp_info['corp_code']] = {
+    #         'name': corp_info['corp_name'],
+    #         'stock_code': corp_info['stock_code'],
+    #         'data': custom_data
+    #     }
+    #     time.sleep(1)
+    # print(all_data)
 
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
