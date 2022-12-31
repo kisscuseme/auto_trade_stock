@@ -108,10 +108,11 @@ def get_corp_data_by_web(corp_code):
 
 def get_index_data(web_data):
     result = []
-    for tag in web_data:
+    for i, tag in enumerate(web_data):
         if tag.text != '':
             result.append(
                 {
+                    'index': i,
                     'name': tag.name,
                     'text': tag.text,
                     'data': tag
@@ -216,6 +217,8 @@ def get_custom_data(web_data):
             
     return result
 
+# def get_tag_data():
+
 def insert_data():
     global all_data
     # corp_list = get_corp_code()
@@ -223,7 +226,8 @@ def insert_data():
     for corp_info in corp_list:
         print(corp_info)
         web_data = get_corp_data_by_web(corp_info['corp_code'])
-        print(get_index_data(web_data)[0])
+        index_data = get_index_data(web_data)
+        print(index_data[0])
     #     custom_data = {}
     #     if web_data is not None:
     #         custom_data = get_custom_data(web_data)
