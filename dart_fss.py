@@ -145,6 +145,19 @@ def get_ness_data(data, ness_words):
         result = get_target_data(result, [word])
     return result
 
+def get_row_value(df, row_name=None, index=1):
+    for i in range(len(df)):
+        if not df.isna().iloc[i][0] and row_name in df.iloc[i][0].replace(' ',''):
+            return df.iloc[i][index]
+    return None
+
+def get_column_name(df, col_name=None):
+    result = []
+    for col in df.columns.get_level_values(-1):
+        if col_name in str(col).replace(' ',''):
+            result.append(col)
+    return result
+
 def get_custom_data(corp_code):
     row_name_list = ['매출액','당기순이익','영업이익','자본총계','부채총계']
     result = {
@@ -160,22 +173,45 @@ def get_custom_data(corp_code):
 
     # 단위
     ness_unit_words = ['단위:']
+    no_ness_unit_words = ['주당']
     ness_unit_data = get_ness_data(index_data, ness_unit_words)
     unit_words = ['백만원', '천원', '원', 'USD']
+    unit_numbers = [1000000, 1000, 1, 0]
     unit_data = get_target_data(ness_unit_data, unit_words)
     
-    units = []
+    units_str = []
     for i in range(len(fs_data)):
         for unit in unit_data:
             if i == 0:
                 if unit['index'] <= fs_data[i]['index']:
-                    print(unit['data'].select('td, p'))
+                    units_str.append(unit)
             elif i < len(fs_data):
                 if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
-                    print(unit['data'].select('td, p'))
-
-    # test_data = get_df_data(target_data[0])
+                    units_str.append(unit)
     
+    units_num = []
+    for unit in units_str:
+        select_tags = unit['data'].select('td, p')
+        for tag in select_tags:
+            tag_text = tag.text.replace(' ','')
+            if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                for i in range(len(unit_words)):
+                    if unit_words[i] in tag_text:
+                        units_num.append(unit_numbers[i])
+                        break
+
+    for fs in fs_data:
+        df = get_df_data(fs)
+        link = get_row_value(df,'연결')
+        if link is not None:
+            print('연결')
+        else:
+            print('별도')
+        for row_name in row_name_list:
+            row = get_row_value(df,row_name=row_name)
+            if row is not None:
+                print(row_name, row)
+
 def insert_data():
     global all_data, row_name_list
     # corp_list = get_corp_code()
