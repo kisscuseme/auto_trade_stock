@@ -181,8 +181,8 @@ def get_custom_data(corp_code):
         ness_unit_words = ['단위:']
         no_ness_unit_words = ['주당']
         ness_unit_data = get_ness_data(index_data, ness_unit_words)
-        unit_words = ['백만원', '천원', '원', 'USD', 'CNY']
-        unit_numbers = [1000000, 1000, 1, 0, 0]
+        unit_words = ['백만원','천원','원','USD','CNY','RMB','JPY']
+        unit_numbers = [1000000,1000,1,0,0,0,0]
         unit_data = get_target_data(ness_unit_data, unit_words)
 
         units_str = []
@@ -243,7 +243,7 @@ def insert_data():
     corp_list = get_corp_code()
     # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
     # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
-    corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
+    # corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
     cnt = 0
     for corp_info in corp_list:
         print(corp_info)
