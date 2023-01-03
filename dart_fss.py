@@ -146,7 +146,7 @@ def get_ness_data(data, ness_words):
     return result
 
 def get_custom_data(corp_code):
-    row_name_list = ['당기순이익','영업이익','자본총계','부채총계']
+    row_name_list = ['매출액','당기순이익','영업이익','자본총계','부채총계']
     result = {
         '재무제표': {}
     }
@@ -154,21 +154,25 @@ def get_custom_data(corp_code):
     web_data = get_corp_data_by_web(corp_code)
     index_data = get_index_data(web_data)
 
-    # 구분 기준
-    p_data = get_tag_data(index_data, 'p')
-    ness_dvsn_words = ['연결', '별도']
-    ness_dvsn_data = get_ness_data(p_data, ness_dvsn_words)
-    print(ness_dvsn_data)
-
     # 재무제표
     table_data = get_tag_data(index_data, 'table')
-    fs_data = get_target_data(table_data, row_name_list)
+    fs_data = get_ness_data(table_data, row_name_list)
 
     # 단위
     ness_unit_words = ['단위:']
     ness_unit_data = get_ness_data(index_data, ness_unit_words)
     unit_words = ['백만원', '천원', '원', 'USD']
     unit_data = get_target_data(ness_unit_data, unit_words)
+    
+    units = []
+    for i in range(len(fs_data)):
+        for unit in unit_data:
+            if i == 0:
+                if unit['index'] <= fs_data[i]['index']:
+                    print(unit['data'].select('td, p'))
+            elif i < len(fs_data):
+                if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
+                    print(unit['data'].select('td, p'))
 
     # test_data = get_df_data(target_data[0])
     
