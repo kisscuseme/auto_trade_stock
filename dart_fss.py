@@ -10,6 +10,7 @@ import datetime
 import time
 from bs4 import BeautifulSoup
 import pandas as pd
+from util import write_json
 
 load_dotenv()
 
@@ -129,7 +130,7 @@ def get_target_data(data, include_words):
     result = []
     for tag in data:
         for word in include_words:
-            if word in tag['data'].text:
+            if word in tag['data'].text.replace(' ',''):
                 result.append(tag)
                 break
     return result
@@ -161,75 +162,103 @@ def get_column_name(df, col_name=None):
 def get_custom_data(corp_code):
     row_name_list = ['매출액','당기순이익','영업이익','자본총계','부채총계']
     result = {
-        '재무제표': {}
+        '재무제표': {
+            '연결': {},
+            '별도': {}
+        }
     }
     
     web_data = get_corp_data_by_web(corp_code)
-    index_data = get_index_data(web_data)
 
-    # 재무제표
-    table_data = get_tag_data(index_data, 'table')
-    fs_data = get_ness_data(table_data, row_name_list)
+    if web_data is not None:
+        index_data = get_index_data(web_data)
 
-    # 단위
-    ness_unit_words = ['단위:']
-    no_ness_unit_words = ['주당']
-    ness_unit_data = get_ness_data(index_data, ness_unit_words)
-    unit_words = ['백만원', '천원', '원', 'USD']
-    unit_numbers = [1000000, 1000, 1, 0]
-    unit_data = get_target_data(ness_unit_data, unit_words)
-    
-    units_str = []
-    for i in range(len(fs_data)):
-        for unit in unit_data:
-            if i == 0:
-                if unit['index'] <= fs_data[i]['index']:
-                    units_str.append(unit)
-            elif i < len(fs_data):
-                if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
-                    units_str.append(unit)
-    
-    units_num = []
-    for unit in units_str:
-        select_tags = unit['data'].select('td, p')
-        for tag in select_tags:
-            tag_text = tag.text.replace(' ','')
-            if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
-                for i in range(len(unit_words)):
-                    if unit_words[i] in tag_text:
-                        units_num.append(unit_numbers[i])
-                        break
+        # 재무제표
+        table_data = get_tag_data(index_data, 'table')
+        fs_data = get_ness_data(table_data, row_name_list)
 
-    for fs in fs_data:
-        df = get_df_data(fs)
-        link = get_row_value(df,'연결')
-        if link is not None:
-            print('연결')
-        else:
-            print('별도')
-        for row_name in row_name_list:
-            row = get_row_value(df,row_name=row_name)
-            if row is not None:
-                print(row_name, row)
+        # 단위
+        ness_unit_words = ['단위:']
+        no_ness_unit_words = ['주당']
+        ness_unit_data = get_ness_data(index_data, ness_unit_words)
+        unit_words = ['백만원', '천원', '원', 'USD', 'CNY']
+        unit_numbers = [1000000, 1000, 1, 0, 0]
+        unit_data = get_target_data(ness_unit_data, unit_words)
+
+        units_str = []
+        for i in range(len(fs_data)):
+            for unit in unit_data:
+                if i == 0:
+                    if unit['index'] <= fs_data[i]['index']:
+                        units_str.append(unit)
+                elif i < len(fs_data):
+                    if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
+                        units_str.append(unit)
+
+        units_num = []
+        for unit in units_str:
+            if unit['name'] == 'table':
+                select_tags = unit['data'].select('td')
+            elif unit['name'] == 'p':
+                select_tags = [unit['data']]
+            for tag in select_tags:
+                tag_text = tag.text.replace(' ','')
+                if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                    for i in range(len(unit_words)):
+                        if unit_words[i] in tag_text:
+                            units_num.append(unit_numbers[i])
+                            break
+
+        for i in range(len(fs_data)):
+            if units_num[i] != 0:
+                df = get_df_data(fs_data[i])
+                link = get_row_value(df,'연결')
+                dvsn = None
+                if link is not None:
+                    dvsn = '연결'
+                else:
+                    dvsn = '별도'
+                for row_name in row_name_list:
+                    row = get_row_value(df,row_name=row_name)
+                    if row is not None:
+                        row = str(row)
+                        if '△' in row:
+                            row = row.replace('△', '').replace(',','')
+                            row = int(row) * -1
+                        elif 'Δ' in row:
+                            row = row.replace('Δ', '').replace(',','')
+                            row = int(row) * -1
+                        elif '(' in row:
+                            row = row.replace('(', '').replace(')', '').replace(',','')
+                            row = int(row) * -1
+                        else:
+                            row = row.replace(',','')
+                            row = int(row)
+                        result['재무제표'][dvsn][row_name] = row * units_num[i]
+        
+    return result
 
 def insert_data():
     global all_data, row_name_list
-    # corp_list = get_corp_code()
-    corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
+    corp_list = get_corp_code()
+    # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
+    # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
+    corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
+    cnt = 0
     for corp_info in corp_list:
         print(corp_info)
-        get_custom_data(corp_info['corp_code'])
 
-    #     custom_data = {}
-    #     if web_data is not None:
-    #         custom_data = get_custom_data(web_data)
-    #     all_data[corp_info['corp_code']] = {
-    #         'name': corp_info['corp_name'],
-    #         'stock_code': corp_info['stock_code'],
-    #         'data': custom_data
-    #     }
-    #     time.sleep(1)
-    # print(all_data)
+        all_data[corp_info['corp_code']] = {
+            'name': corp_info['corp_name'],
+            'stock_code': corp_info['stock_code'],
+            'data': get_custom_data(corp_info['corp_code'])
+        }
+        # cnt += 1
+        # if cnt == 100:
+        #     break
+        time.sleep(1)
+    print(all_data)
+    write_json('./data/', 'all_data' + '.json', all_data, True)
 
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
