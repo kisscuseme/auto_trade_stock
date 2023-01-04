@@ -173,6 +173,9 @@ def get_custom_data(corp_code):
     if web_data is not None:
         index_data = get_index_data(web_data)
 
+        # 단위 정보 정리
+        unit_info = []
+
         # 재무제표
         table_data = get_tag_data(index_data, 'table')
         fs_data = get_ness_data(table_data, row_name_list)
@@ -185,32 +188,41 @@ def get_custom_data(corp_code):
         unit_numbers = [1000000,1000,1,1,0,0,0,0,0]
         unit_data = get_target_data(ness_unit_data, unit_words)
 
-        units_str = []
+        # units_str = []
         for i in range(len(fs_data)):
+            unit_info.append({
+                'str': None
+            })
             for unit in unit_data:
                 if i == 0:
                     if unit['index'] <= fs_data[i]['index']:
-                        units_str.append(unit)
+                        # units_str.append(unit)
+                        unit_info[i]['str'] = unit
                 elif i < len(fs_data):
                     if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
-                        units_str.append(unit)
+                        # units_str.append(unit)
+                        unit_info[i]['str'] = unit
 
-        units_num = []
-        for unit in units_str:
-            if unit['name'] == 'table':
-                select_tags = unit['data'].select('td')
-            elif unit['name'] == 'p':
-                select_tags = [unit['data']]
+        # units_num = []
+        for i in range(len(unit_info)):
+            unit_info[i]['num'] = None
+            if unit_info[i]['str']['name'] == 'table':
+                select_tags = unit_info[i]['str']['data'].select('td')
+            elif unit_info[i]['str']['name'] == 'p':
+                select_tags = [unit_info[i]['str']['data']]
             for tag in select_tags:
                 tag_text = tag.text.replace(' ','')
                 if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
-                    for i in range(len(unit_words)):
-                        if unit_words[i] in tag_text:
-                            units_num.append(unit_numbers[i])
+                    for j in range(len(unit_words)):
+                        if unit_words[j] in tag_text:
+                            # units_num.append(unit_numbers[j])
+                            unit_info[i]['num'] = unit_numbers[j]
                             break
+            # if unit_info[i]['num'] is None:
+            #     print(unit_info[i]['num'])
 
         for i in range(len(fs_data)):
-            if units_num[i] != 0:
+            if unit_info[i]['num'] != 0:
                 df = get_df_data(fs_data[i])
                 link = get_row_value(df,'연결')
                 dvsn = None
@@ -234,16 +246,17 @@ def get_custom_data(corp_code):
                         else:
                             row = row.replace(',','')
                             row = int(row)
-                        result['재무제표'][dvsn][row_name] = row * units_num[i]
+                        result['재무제표'][dvsn][row_name] = row * unit_info[i]['num']
         
     return result
 
 def insert_data():
     global all_data, row_name_list
-    corp_list = get_corp_code()
+    # corp_list = get_corp_code()
     # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
     # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
-    # corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
+    corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
+    # corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
     cnt = 0
     for corp_info in corp_list:
         print(corp_info)
@@ -256,7 +269,7 @@ def insert_data():
         # cnt += 1
         # if cnt == 100:
         #     break
-        time.sleep(0.5)
+        time.sleep(1)
     print(all_data)
     write_json('./data/', 'all_data' + '.json', all_data, True)
 
