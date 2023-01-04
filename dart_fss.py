@@ -15,8 +15,8 @@ from util import write_json
 load_dotenv()
 
 crtfc_key = os.getenv('CRTFC_KEY')
-
-user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
+headers = {"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36"}
+user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36"
 
 options = webdriver.ChromeOptions()
 options.add_argument('--headless')
@@ -64,7 +64,7 @@ def get_corp_data_by_api(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div=
         'bsns_year': bsns_year,
         'reprt_code': reprt_code
     }
-    res = requests.get(url, params=params).json()
+    res = requests.get(url, params=params, headers=headers).json()
     result = []
     for item in res['list']:
         if all_div:
@@ -181,8 +181,8 @@ def get_custom_data(corp_code):
         ness_unit_words = ['단위:']
         no_ness_unit_words = ['주당']
         ness_unit_data = get_ness_data(index_data, ness_unit_words)
-        unit_words = ['백만원','천원','원','USD','CNY','RMB','JPY']
-        unit_numbers = [1000000,1000,1,0,0,0,0]
+        unit_words = ['백만원','천원','원','KRW','USD','CNY','RMB','JPY','엔']
+        unit_numbers = [1000000,1000,1,1,0,0,0,0,0]
         unit_data = get_target_data(ness_unit_data, unit_words)
 
         units_str = []
@@ -256,7 +256,7 @@ def insert_data():
         # cnt += 1
         # if cnt == 100:
         #     break
-        time.sleep(1)
+        time.sleep(0.5)
     print(all_data)
     write_json('./data/', 'all_data' + '.json', all_data, True)
 
