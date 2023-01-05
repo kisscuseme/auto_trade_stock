@@ -11,6 +11,7 @@ import time
 from bs4 import BeautifulSoup
 import pandas as pd
 from util import write_json
+import math
 
 load_dotenv()
 
@@ -194,32 +195,33 @@ def get_custom_data(corp_code):
                 'str': None
             })
             for unit in unit_data:
-                select_tags = unit['data'].select('td')
-                checkSkip = False
+                if unit['name'] == 'table':
+                    select_tags = unit['data'].select('td')
+                elif unit['name'] == 'p':
+                    select_tags = [unit['data']]
                 for tag in select_tags:
                     tag_text = tag.text.replace(' ','')
-                    if no_ness_unit_words[0] in tag_text:
-                        checkSkip = True
-                if not checkSkip:
-                    if i == 0:
-                        if unit['index'] <= fs_data[i]['index']:
-                            # units_str.append(unit)
-                            unit_info[i]['str'] = unit
-                    elif i < len(fs_data):
-                        if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
-                            # units_str.append(unit)
-                            unit_info[i]['str'] = unit
+                    if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                        if i == 0:
+                            if unit['index'] <= fs_data[i]['index']:
+                                # units_str.append(unit)
+                                unit_info[i]['str'] = unit
+                                break
+                        elif i < len(fs_data):
+                            if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
+                                # units_str.append(unit)
+                                unit_info[i]['str'] = unit
+                                break
+
             if unit_info[i]['str'] is None:
                 df = get_df_data(fs_data[i])
-                orgin = get_row_value(df,row_name='매출액')
-                print(fs_data[i]['index'])
-                print(orgin)
+                origin = get_row_value(df,row_name='매출액')
                 for table in table_data:
+                    temp_unit_num = None
                     if  fs_data[i]['index'] < table['index']:
                         df = get_df_data(table)
                         comp = get_row_value(df, row_name='매출액')
                         if comp is not None:
-                            print(comp)
                             for unit in unit_data:
                                 if fs_data[i]['index'] < unit['index'] <= table['index']:
                                     if unit['name'] == 'table':
@@ -229,16 +231,29 @@ def get_custom_data(corp_code):
                                     for tag in select_tags:
                                         tag_text = tag.text.replace(' ','')
                                         if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
-                                            temp_unit_num = None
                                             for j in range(len(unit_words)):
                                                 if unit_words[j] in tag_text:
                                                     temp_unit_num = unit_numbers[j]
                                                     break
-                                                print(temp_unit_num)
-                                                amt_ratio = comp*temp_unit_num
-                                                print(amt_ratio)
 
+                            if temp_unit_num is not None:
+                                temp_unit_str = None
+                                temp_len = len(str(temp_unit_num))
+                                origin_len = len(origin)
+                                comp_len = len(str(int(comp)*temp_unit_num))
+                                len_gap = comp_len - origin_len
+                                # print(origin, comp, temp_unit_num)
+                                if len_gap == 6 or temp_len + len_gap == 6:
+                                    temp_unit_str = '백만원'
+                                elif len_gap == 3 or temp_len + len_gap == 3:
+                                    temp_unit_str = '천원'
+                                elif len_gap == 0 or temp_len + len_gap == 0:
+                                    temp_unit_str = '원'
 
+                                unit_info[i]['str'] = {
+                                    'name': 'p',
+                                    'data': BeautifulSoup('<p>(단위:'+temp_unit_str+')</p>', 'html.parser')
+                                    }
         # units_num = []
         for i in range(len(unit_info)):
             unit_info[i]['num'] = None
@@ -286,11 +301,11 @@ def get_custom_data(corp_code):
 
 def insert_data():
     global all_data, row_name_list
-    # corp_list = get_corp_code()
+    corp_list = get_corp_code()
     # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
     # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
     # corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
-    corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
+    # corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
     cnt = 0
     for corp_info in corp_list:
         print(corp_info)
