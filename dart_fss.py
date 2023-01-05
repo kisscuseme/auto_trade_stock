@@ -148,7 +148,7 @@ def get_ness_data(data, ness_words):
 
 def get_row_value(df, row_name=None, index=1):
     for i in range(len(df)):
-        if not df.isna().iloc[i][0] and row_name in df.iloc[i][0].replace(' ',''):
+        if not df.isna().iloc[i][0] and row_name in str(df.iloc[i][0]).replace(' ',''):
             return df.iloc[i][index]
     return None
 
@@ -194,14 +194,50 @@ def get_custom_data(corp_code):
                 'str': None
             })
             for unit in unit_data:
-                if i == 0:
-                    if unit['index'] <= fs_data[i]['index']:
-                        # units_str.append(unit)
-                        unit_info[i]['str'] = unit
-                elif i < len(fs_data):
-                    if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
-                        # units_str.append(unit)
-                        unit_info[i]['str'] = unit
+                select_tags = unit['data'].select('td')
+                checkSkip = False
+                for tag in select_tags:
+                    tag_text = tag.text.replace(' ','')
+                    if no_ness_unit_words[0] in tag_text:
+                        checkSkip = True
+                if not checkSkip:
+                    if i == 0:
+                        if unit['index'] <= fs_data[i]['index']:
+                            # units_str.append(unit)
+                            unit_info[i]['str'] = unit
+                    elif i < len(fs_data):
+                        if fs_data[i-1]['index'] < unit['index'] <= fs_data[i]['index']:
+                            # units_str.append(unit)
+                            unit_info[i]['str'] = unit
+            if unit_info[i]['str'] is None:
+                df = get_df_data(fs_data[i])
+                orgin = get_row_value(df,row_name='매출액')
+                print(fs_data[i]['index'])
+                print(orgin)
+                for table in table_data:
+                    if  fs_data[i]['index'] < table['index']:
+                        df = get_df_data(table)
+                        comp = get_row_value(df, row_name='매출액')
+                        if comp is not None:
+                            print(comp)
+                            for unit in unit_data:
+                                if fs_data[i]['index'] < unit['index'] <= table['index']:
+                                    if unit['name'] == 'table':
+                                        select_tags = unit['data'].select('td')
+                                    elif unit['name'] == 'p':
+                                        select_tags = [unit['data']]
+                                    for tag in select_tags:
+                                        tag_text = tag.text.replace(' ','')
+                                        if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                                            temp_unit_num = None
+                                            for j in range(len(unit_words)):
+                                                if unit_words[j] in tag_text:
+                                                    temp_unit_num = unit_numbers[j]
+                                                    break
+                                                print(temp_unit_num)
+                                                amt_ratio = comp*temp_unit_num
+                                                print(amt_ratio)
+
 
         # units_num = []
         for i in range(len(unit_info)):
@@ -218,8 +254,6 @@ def get_custom_data(corp_code):
                             # units_num.append(unit_numbers[j])
                             unit_info[i]['num'] = unit_numbers[j]
                             break
-            # if unit_info[i]['num'] is None:
-            #     print(unit_info[i]['num'])
 
         for i in range(len(fs_data)):
             if unit_info[i]['num'] != 0:
@@ -255,8 +289,8 @@ def insert_data():
     # corp_list = get_corp_code()
     # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
     # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
-    corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
-    # corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
+    # corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
+    corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
     cnt = 0
     for corp_info in corp_list:
         print(corp_info)
