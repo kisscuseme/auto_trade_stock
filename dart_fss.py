@@ -27,7 +27,7 @@ options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
 all_data = {}
-except_corp_code = ['01476219']
+except_corp_code = [] #['01476219']
 
 # 기업 코드 ex) [{'corp_code': '00126380', 'corp_name': '삼성전자', 'stock_code': '005930', 'modify_date': '20220509'}]
 def get_corp_code(name=None, match=None):
@@ -149,13 +149,26 @@ def get_ness_data(data, ness_words):
         result = get_target_data(result, [word])
     return result
 
-def get_row_value(df, row_name=None, index=1):
+def get_row_value(data, row_name=None, index=1, only_check=False):
+    df = get_df_data(data)
     for i in range(len(df)):
-        if not df.isna().iloc[i][0] and row_name in str(df.iloc[i][0]).replace(' ',''):
-            val = df.iloc[i][index]
-            print(row_name)
-            print(val)
-            return val
+        if len(df.iloc[i]) > 1:
+            val = str(df.iloc[i][index])
+            if not df.isna().iloc[i][0] and row_name in str(df.iloc[i][0]).replace(' ',''):
+                if not only_check:
+                    if ' ' in val:
+                        val_list = val.split(' ')
+                        select_tags = data['data'].select('th,td')
+                        for tag in select_tags:
+                            tag_text = tag.text.replace(' ','')
+                            if row_name in tag_text:
+                                row_list = tag_text.strip().split('\n')
+                                break
+                        for i in range(len(row_list)):
+                            if row_name in row_list[i]:
+                                val = val_list[i]
+                                break
+                return val
     return None
 
 def get_column_name(df, col_name=None):
@@ -184,6 +197,7 @@ def get_custom_data(corp_code):
 
         # 재무제표
         table_data = get_tag_data(index_data, 'table')
+        p_data = get_tag_data(index_data, 'p')
         fs_data = get_ness_data(table_data, row_name_list)
 
         # 단위
@@ -210,7 +224,7 @@ def get_custom_data(corp_code):
             })
             for unit in unit_data:
                 if unit['name'] == 'table':
-                    select_tags = unit['data'].select('td')
+                    select_tags = unit['data'].select('th,td')
                 elif unit['name'] == 'p':
                     select_tags = [unit['data']]
                 for tag in select_tags:
@@ -227,19 +241,17 @@ def get_custom_data(corp_code):
 
             # 단위 못찾을 경우 탐색
             if unit_info[i]['str'] is None:
-                df = get_df_data(fs_data[i])
                 check_row_name = '부채총계'
-                origin = get_row_value(df,row_name=check_row_name)
+                origin = get_row_value(fs_data[i],row_name=check_row_name)
                 for table in table_data:
                     temp_unit_num = None
                     if  fs_data[i]['index'] < table['index']:
-                        df = get_df_data(table)
-                        comp = get_row_value(df, row_name=check_row_name)
+                        comp = get_row_value(table, row_name=check_row_name)
                         if comp is not None:
                             for unit in unit_data:
                                 if fs_data[i]['index'] < unit['index'] <= table['index']:
                                     if unit['name'] == 'table':
-                                        select_tags = unit['data'].select('td')
+                                        select_tags = unit['data'].select('th,td')
                                     elif unit['name'] == 'p':
                                         select_tags = [unit['data']]
                                     for tag in select_tags:
@@ -277,7 +289,7 @@ def get_custom_data(corp_code):
         checkForeign = False
         for i in range(int(len(fs_data)/2)):
             if unit_info[i]['str']['name'] == 'table':
-                select_tags = unit_info[i]['str']['data'].select('td')
+                select_tags = unit_info[i]['str']['data'].select('th,td')
             elif unit_info[i]['str']['name'] == 'p':
                 select_tags = [unit_info[i]['str']['data']]
             for tag in select_tags:
@@ -287,19 +299,19 @@ def get_custom_data(corp_code):
                         if unit_words_for[j] in tag_text:
                             checkForeign = True
                             break
-        
-        if not checkForeign:
-            if len(unit_info) < 3:
-                fs_data = fs_data[0:1]
-                unit_info = unit_info[0:1]
-            else:
-                fs_data = fs_data[0:2]
-                unit_info = unit_info[0:2]
+
+        # if checkForeign:
+        #     if len(unit_info) < 3:
+        #         fs_data = fs_data[0:1]
+        #         unit_info = unit_info[0:1]
+        #     else:
+        #         fs_data = fs_data[0:2]
+        #         unit_info = unit_info[0:2]
         
         for i in range(len(unit_info)):
             unit_info[i]['num'] = None
             if unit_info[i]['str']['name'] == 'table':
-                select_tags = unit_info[i]['str']['data'].select('td')
+                select_tags = unit_info[i]['str']['data'].select('th,td')
             elif unit_info[i]['str']['name'] == 'p':
                 select_tags = [unit_info[i]['str']['data']]
             for tag in select_tags:
@@ -312,15 +324,46 @@ def get_custom_data(corp_code):
 
         for i in range(len(fs_data)):
             if unit_info[i]['num'] != 0:
-                df = get_df_data(fs_data[i])
-                link = get_row_value(df,'연결')
+                link = get_row_value(fs_data[i],'연결',only_check=True)
+
+                if link is None:
+                    for tag in p_data:
+                        span_data = tag['data'].select('span,div')
+                        if len(span_data) > 0:
+                            for span in span_data:
+                                span_text = span.text.replace(' ','')
+                                if i == 0:
+                                    if tag['index'] <= fs_data[i]['index']:
+                                        if '연결' in span_text and '요약' in span_text:
+                                            link = True
+                                            break
+                                else:
+                                    if fs_data[i-1]['index'] < tag['index'] <= fs_data[i]['index']:
+                                        if '연결' in span_text and '요약' in span_text:
+                                            print(span_text)
+                                            link = True
+                                            break
+                        else:
+                            tag_text = tag['data'].text.replace(' ','')
+                            if i == 0:
+                                if tag['index'] <= fs_data[i]['index']:
+                                    if '연결' in tag_text and '요약' in tag_text:
+                                        link = True
+                            else:
+                                if fs_data[i-1]['index'] < tag['index'] <= fs_data[i]['index']:
+                                    if '연결' in tag_text and '요약' in tag_text:
+                                        print(tag_text)
+                                        link = True
+                        if link:
+                            break
+
                 dvsn = None
                 if link is not None:
                     dvsn = '연결'
                 else:
                     dvsn = '별도'
                 for row_name in row_name_list:
-                    row = get_row_value(df,row_name=row_name)
+                    row = get_row_value(fs_data[i],row_name=row_name)
                     if row is not None:
                         row = str(row)
                         if '-' == row:
@@ -343,37 +386,36 @@ def get_custom_data(corp_code):
 
 def insert_data():
     global all_data, row_name_list
-    corp_list = get_corp_code()
-    # corp_list = [{'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'}]
-    # corp_list = [{'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'}]
-    # corp_list = [{'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'}]
-    # corp_list = [{'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'}]
-    # corp_list = [{'corp_code': '00351092', 'corp_name': '삼보모터스', 'stock_code': '053700', 'modify_date': '20211208'}]
-    # corp_list = [{'corp_code': '00147082', 'corp_name': '재영솔루텍', 'stock_code': '049630', 'modify_date': '20211210'}]
-    # corp_list = [{'corp_code': '00146719', 'corp_name': '일화모직공업', 'stock_code': '001590', 'modify_date': '20210618'}]
-    # corp_list = [{'corp_code': '00136624', 'corp_name': '신영와코루', 'stock_code': '005800', 'modify_date': '20211215'}]
-    # corp_list_skip = [{'corp_code': '00225159', 'corp_name': 'SNT홀딩스', 'stock_code': '036530', 'modify_date': '20211130'}]
-    # corp_list_skip = [{'corp_code': '01365384', 'corp_name': '이성씨엔아이', 'stock_code': '379390', 'modify_date': '20220214'}]
-    # corp_list_skip = [{'corp_code': '00113492', 'corp_name': '깨끗한나라', 'stock_code': '004540', 'modify_date': '20211202'}]
-    corp_list_skip = [{'corp_code': '01117246', 'corp_name': 'EMB', 'stock_code': '278990', 'modify_date': '20220208'}]
-    cnt = 0
+    corp_list = None
+    corp_list_skip = []
+    # corp_list_skip.append({'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'})
+    # corp_list_skip.append({'corp_code': '00232317', 'corp_name': '지오엠씨', 'stock_code': '033030', 'modify_date': '20170630'})
+    # corp_list_skip.append({'corp_code': '01170962', 'corp_name': 'GRT', 'stock_code': '900290', 'modify_date': '20181122'})
+    # corp_list_skip.append({'corp_code': '00141389', 'corp_name': '영풍정밀', 'stock_code': '036560', 'modify_date': '20211208'})
+    # corp_list_skip.append({'corp_code': '00351092', 'corp_name': '삼보모터스', 'stock_code': '053700', 'modify_date': '20211208'})
+    # corp_list_skip.append({'corp_code': '00147082', 'corp_name': '재영솔루텍', 'stock_code': '049630', 'modify_date': '20211210'})
+    # corp_list_skip.append({'corp_code': '00146719', 'corp_name': '일화모직공업', 'stock_code': '001590', 'modify_date': '20210618'})
+    # corp_list_skip.append({'corp_code': '00136624', 'corp_name': '신영와코루', 'stock_code': '005800', 'modify_date': '20211215'})
+    # corp_list_skip.append({'corp_code': '00225159', 'corp_name': 'SNT홀딩스', 'stock_code': '036530', 'modify_date': '20211130'})
+    # corp_list_skip.append({'corp_code': '01365384', 'corp_name': '이성씨엔아이', 'stock_code': '379390', 'modify_date': '20220214'})
+    # corp_list_skip.append({'corp_code': '00113492', 'corp_name': '깨끗한나라', 'stock_code': '004540', 'modify_date': '20211202'})
+    # corp_list_skip.append({'corp_code': '01117246', 'corp_name': 'EMB', 'stock_code': '278990', 'modify_date': '20220208'})
+    # corp_list_skip.append({'corp_code': '01064069', 'corp_name': '토박스코리아', 'stock_code': '215480', 'modify_date': '20211210'})
+    if len(corp_list_skip) > 0:
+        corp_list = corp_list_skip
+    else:
+        corp_list = get_corp_code()
     for corp_info in corp_list:
         print(corp_info)
-
-        if corp_info['corp_code'] == corp_list_skip[0]['corp_code']:
-            cnt += 1
-        
-        if cnt > 0:
-        # if True:
-            all_data[corp_info['corp_code']] = {
-                'name': corp_info['corp_name'],
-                'stock_code': corp_info['stock_code'],
-                'data': get_custom_data(corp_info['corp_code'])
-            }
-            # cnt += 1
-            # if cnt == 100:
-            #     break
-            time.sleep(1)
+        all_data[corp_info['corp_code']] = {
+            'name': corp_info['corp_name'],
+            'stock_code': corp_info['stock_code'],
+            'data': get_custom_data(corp_info['corp_code'])
+        }
+        # cnt += 1
+        # if cnt == 100:
+        #     break
+        time.sleep(1)
     print(all_data)
     write_json('./data/', 'all_data' + '.json', all_data, True)
 
