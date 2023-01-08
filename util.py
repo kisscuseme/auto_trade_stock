@@ -40,12 +40,14 @@ def write_json(path, file_name, data, override=False):
     json.dump(data, w)
     w.close()
 
-def read_json(file_name):
+def read_json(path, file_name):
     try:
-        r = open(file_name, mode='rt', encoding='utf-8')
+        r = open(path + file_name, mode='rt', encoding='utf-8')
         contents = r.read()
         result = json.loads(contents)
         r.close()
+        if not result:
+            result = {}
         return result
     except:
-        return None
+        return {}

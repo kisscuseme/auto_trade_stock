@@ -10,7 +10,7 @@ import datetime
 import time
 from bs4 import BeautifulSoup
 import pandas as pd
-from util import write_json
+from util import write_json, read_json
 import math
 
 load_dotenv()
@@ -26,7 +26,8 @@ options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
-all_data = {}
+all_data = all_data = read_json('./data/', 'all_data' + '.json')
+skip_corp = read_json('./data/', 'skip_corp' + '.json')
 except_corp_code = [] #['01476219']
 
 # 기업 코드 ex) [{'corp_code': '00126380', 'corp_name': '삼성전자', 'stock_code': '005930', 'modify_date': '20220509'}]
@@ -76,13 +77,10 @@ def get_corp_data_by_api(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div=
                 result.append(item)
     return result
 
-def get_corp_data_by_web(corp_code):
+def get_corp_data_by_web(corp_code, ymd_from, ymd_to):
     global browser
     if browser is None:
         browser = webdriver.Chrome(ChromeDriverManager().install(), options=webdriver.ChromeOptions())
-    now = datetime.datetime.now()
-    ymd_from = str(now.year-1) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
-    ymd_to = str(now.year) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
     data = {
         "textCrpCik": corp_code,
         "startDate": ymd_from,
@@ -134,6 +132,7 @@ def get_target_data(data, include_words):
     for tag in data:
         for word in include_words:
             if word in tag['data'].text.replace(' ',''):
+                tag['data'] = BeautifulSoup(str(tag['data']).replace('Δ ','Δ').replace('△ ','△').replace('- ','-').replace('( ','(').replace(' )',')'), 'html.parser')
                 result.append(tag)
                 break
     return result
@@ -159,11 +158,17 @@ def get_row_value(data, row_name=None, index=1, only_check=False):
                     if ' ' in val:
                         val_list = val.split(' ')
                         select_tags = data['data'].select('th,td')
+                        cnt = 0
                         for tag in select_tags:
                             tag_text = tag.text.replace(' ','')
+                            if cnt > 0:
+                                if '<br/>' in str(tag):
+                                    val_list = BeautifulSoup(str(tag).replace('<br/>','#dvsn#'), 'html.parser').text.replace(' ','').split('#dvsn#')
+                                break
                             if row_name in tag_text:
                                 row_list = tag_text.strip().split('\n')
-                                break
+                                cnt += 1
+                                
                         for i in range(len(row_list)):
                             if row_name in row_list[i]:
                                 val = val_list[i]
@@ -178,7 +183,8 @@ def get_column_name(df, col_name=None):
             result.append(col)
     return result
 
-def get_custom_data(corp_code):
+def get_custom_data(corp_code, ymd_from, ymd_to):
+    global skip_corp
     row_name_list = ['매출액','당기순이익','영업이익','자본총계','부채총계']
     result = {
         '재무제표': {
@@ -187,7 +193,7 @@ def get_custom_data(corp_code):
         }
     }
     
-    web_data = get_corp_data_by_web(corp_code)
+    web_data = get_corp_data_by_web(corp_code, ymd_from, ymd_to)
 
     if web_data is not None:
         index_data = get_index_data(web_data)
@@ -264,13 +270,15 @@ def get_custom_data(corp_code):
 
                             if temp_unit_num is not None:
                                 cut_len = None
-                                if len(str(origin)) < len(str(comp)):
-                                    cut_len = len(str(origin))
+                                comp = str(int(float(comp)))
+                                origin = str(int(float(origin)))
+                                if len(origin) < len(comp):
+                                    cut_len = len(origin)
                                 else:
-                                    cut_len = len(str(comp))
-                                if str(origin).isdigit() and str(comp).isdigit() and round(int(str(origin)[0:cut_len-1])/int(str(comp)[0:cut_len-1])) == 1:
+                                    cut_len = len(comp)
+                                if origin.isdigit() and comp.isdigit() and round(int(origin[0:cut_len-1])/int(comp[0:cut_len-1])) == 1:
                                     temp_unit_str = None
-                                    origin_len = len(str(origin))
+                                    origin_len = len(origin)
                                     comp_len = len(str(int(comp)*temp_unit_num))
                                     temp_len = len(str(temp_unit_num))
                                     len_gap = comp_len - origin_len
@@ -280,25 +288,27 @@ def get_custom_data(corp_code):
                                         temp_unit_str = '천원'
                                     elif len_gap == 0 or temp_len + len_gap == 0:
                                         temp_unit_str = '원'
+                                    else:
+                                        temp_unit_str = '원' # 찾는 단위 없을 경우 기본 값 (추후 수정 가능성 있음)
 
                                     unit_info[i]['str'] = {
                                         'name': 'p',
                                         'data': BeautifulSoup('<p>(단위:'+temp_unit_str+')</p>', 'html.parser')
                                         }
-        
-        checkForeign = False
-        for i in range(int(len(fs_data)/2)):
-            if unit_info[i]['str']['name'] == 'table':
-                select_tags = unit_info[i]['str']['data'].select('th,td')
-            elif unit_info[i]['str']['name'] == 'p':
-                select_tags = [unit_info[i]['str']['data']]
-            for tag in select_tags:
-                tag_text = tag.text.replace(' ','')
-                if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
-                    for j in range(len(unit_words_for)):
-                        if unit_words_for[j] in tag_text:
-                            checkForeign = True
-                            break
+
+        # checkForeign = False
+        # for i in range(int(len(fs_data)/2)):
+        #     if unit_info[i]['str']['name'] == 'table':
+        #         select_tags = unit_info[i]['str']['data'].select('th,td')
+        #     elif unit_info[i]['str']['name'] == 'p':
+        #         select_tags = [unit_info[i]['str']['data']]
+        #     for tag in select_tags:
+        #         tag_text = tag.text.replace(' ','')
+        #         if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+        #             for j in range(len(unit_words_for)):
+        #                 if unit_words_for[j] in tag_text:
+        #                     checkForeign = True
+        #                     break
 
         # if checkForeign:
         #     if len(unit_info) < 3:
@@ -340,7 +350,6 @@ def get_custom_data(corp_code):
                                 else:
                                     if fs_data[i-1]['index'] < tag['index'] <= fs_data[i]['index']:
                                         if '연결' in span_text and '요약' in span_text:
-                                            print(span_text)
                                             link = True
                                             break
                         else:
@@ -352,8 +361,8 @@ def get_custom_data(corp_code):
                             else:
                                 if fs_data[i-1]['index'] < tag['index'] <= fs_data[i]['index']:
                                     if '연결' in tag_text and '요약' in tag_text:
-                                        print(tag_text)
-                                        link = True
+                                        if len(result['재무제표']['연결']) == 0:
+                                            link = True
                         if link:
                             break
 
@@ -366,7 +375,7 @@ def get_custom_data(corp_code):
                     row = get_row_value(fs_data[i],row_name=row_name)
                     if row is not None:
                         row = str(row)
-                        if '-' == row:
+                        if '-' == row or '' == row:
                             row = 0
                         elif '△' in row:
                             row = row.replace('△', '').replace(',','')
@@ -381,11 +390,21 @@ def get_custom_data(corp_code):
                             row = row.replace(',','')
                             row = int(row)
                         result['재무제표'][dvsn][row_name] = row * unit_info[i]['num']
+    
+    if len(result['재무제표']['연결']) == 0 and len(result['재무제표']['별도']) == 0:
+        now = datetime.datetime.now()
+        if  ymd_from < str(now.year -1)+now.strftime('%m%d'):
+            if skip_corp is None:
+                skip_corp = {}
+            if skip_corp.get(corp_code) is None:
+                skip_corp[corp_code] = ''
+            skip_corp[corp_code] += (ymd_from + ',')
+            write_json('./data/', 'skip_corp' + '.json', skip_corp, True)
         
     return result
 
 def insert_data():
-    global all_data, row_name_list
+    global all_data, skip_corp
     corp_list = None
     corp_list_skip = []
     # corp_list_skip.append({'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'})
@@ -401,29 +420,49 @@ def insert_data():
     # corp_list_skip.append({'corp_code': '00113492', 'corp_name': '깨끗한나라', 'stock_code': '004540', 'modify_date': '20211202'})
     # corp_list_skip.append({'corp_code': '01117246', 'corp_name': 'EMB', 'stock_code': '278990', 'modify_date': '20220208'})
     # corp_list_skip.append({'corp_code': '01064069', 'corp_name': '토박스코리아', 'stock_code': '215480', 'modify_date': '20211210'})
+    # corp_list_skip.append({'corp_code': '00145738', 'corp_name': '이화전기', 'stock_code': '024810', 'modify_date': '20211214'})
+    # corp_list_skip.append({'corp_code': '00141608', 'corp_name': '오리엔탈정공', 'stock_code': '014940', 'modify_date': '20211209'})
+    corp_list_skip.append({'corp_code': '00353230', 'corp_name': '프리젠', 'stock_code': '060910', 'modify_date': '20210817'})
     if len(corp_list_skip) > 0:
         corp_list = corp_list_skip
     else:
         corp_list = get_corp_code()
-    for corp_info in corp_list:
-        print(corp_info)
-        all_data[corp_info['corp_code']] = {
-            'name': corp_info['corp_name'],
-            'stock_code': corp_info['stock_code'],
-            'data': get_custom_data(corp_info['corp_code'])
-        }
-        # cnt += 1
-        # if cnt == 100:
-        #     break
-        time.sleep(1)
-    print(all_data)
-    write_json('./data/', 'all_data' + '.json', all_data, True)
+    
+    limit_year = 10
+    adjust_year = 1
+    now = datetime.datetime.now()
+    for i in range(limit_year):
+        ymd_from = str(now.year-i-adjust_year) + '0101' #str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
+        ymd_to = str(now.year-i-adjust_year) + '1231' #str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
+
+        print(ymd_from + ' - ' + ymd_to)
+
+        for corp_info in corp_list:
+            print(corp_info)
+
+            if skip_corp is not None and skip_corp.get(corp_info['corp_code']):
+                skip_year_list = skip_corp[corp_info['corp_code']].split(',')
+            else:
+                skip_year_list = []
+            
+            if str(now.year-1-i)+"0101" not in skip_year_list and (all_data.get(corp_info['corp_code']) is None or (all_data.get(corp_info['corp_code']) is not None and all_data[corp_info['corp_code']]['data'].get(str(now.year-i-1)) is None)):
+                if all_data.get(corp_info['corp_code']) is None:
+                    all_data[corp_info['corp_code']] = {
+                        'name': corp_info['corp_name'],
+                        'stock_code': corp_info['stock_code'],
+                        'data': {}
+                    }
+                
+                all_data[corp_info['corp_code']]['data'][str(now.year-i-1)] = get_custom_data(corp_info['corp_code'], ymd_from, ymd_to)
+                time.sleep(1)
+        write_json('./data/', 'all_data' + '.json', all_data, True)
 
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
     #     print(data)
 
 insert_data()
+print(all_data)
 
 # https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20220322000596
 # https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20220316001424
