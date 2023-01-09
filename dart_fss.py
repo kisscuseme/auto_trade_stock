@@ -138,9 +138,12 @@ def get_target_data(data, include_words):
     return result
 
 def get_df_data(tag):
-    dfs = pd.read_html(str(tag['data']))
-    df = dfs[0]
-    return df
+    if tag['data'].text.strip() != '':
+        dfs = pd.read_html(str(tag['data']))
+        df = dfs[0]
+        return df
+    else:
+        return pd.DataFrame({'key': ['value']})
 
 def get_ness_data(data, ness_words):
     result = data
@@ -163,7 +166,7 @@ def get_row_value(data, row_name=None, index=1, only_check=False):
                             tag_text = tag.text.replace(' ','')
                             if cnt > 0:
                                 if '<br/>' in str(tag):
-                                    val_list = BeautifulSoup(str(tag).replace('<br/>','#dvsn#'), 'html.parser').text.replace(' ','').split('#dvsn#')
+                                    val_list = BeautifulSoup(str(tag).replace('<br/>','#dvsn#'), 'html.parser').text.strip().replace(' ','').replace('\n','#dvsn#').split('#dvsn#')
                                 break
                             if row_name in tag_text:
                                 row_list = tag_text.strip().split('\n')
@@ -210,7 +213,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
 
         # 단위
         ness_unit_words = ['단위:']
-        no_ness_unit_words = ['주당']
+        no_ness_unit_words = ['주당','회사수']
         ness_unit_data = get_ness_data(index_data, ness_unit_words)
         unit_words_kor = ['백만원','천원','원','KRW']
         unit_words_for = ['USD','CNY','RMB','JPY','엔']
@@ -237,7 +240,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                     select_tags = [unit['data']]
                 for tag in select_tags:
                     tag_text = tag.text.replace(' ','')
-                    if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                    if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text and no_ness_unit_words[1] not in tag_text:
                         if i == 0:
                             if unit['index'] <= fs_data[i]['index']:
                                 unit_info[i]['str'] = unit
@@ -249,6 +252,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
 
             # 단위 못찾을 경우 탐색
             if unit_info[i]['str'] is None:
+                temp_unit_str = '원' # 찾는 단위 없을 경우 기본 값 (추후 수정 가능성 있음)
                 check_row_name = '부채총계'
                 origin = get_row_value(fs_data[i],row_name=check_row_name)
                 for table in table_data:
@@ -264,7 +268,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                                         select_tags = [unit['data']]
                                     for tag in select_tags:
                                         tag_text = tag.text.replace(' ','')
-                                        if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                                        if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text and no_ness_unit_words[1] not in tag_text:
                                             for j in range(len(unit_words)):
                                                 if unit_words[j] in tag_text:
                                                     temp_unit_num = unit_numbers[j]
@@ -278,10 +282,10 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                                     cut_len = len(origin)
                                 else:
                                     cut_len = len(comp)
+
                                 if origin.isdigit() and comp.isdigit() and round(int(origin[0:cut_len-1])/int(comp[0:cut_len-1])) == 1:
-                                    temp_unit_str = None
                                     origin_len = len(origin)
-                                    comp_len = len(str(int(comp)*temp_unit_num))
+                                    comp_len = len(str(int(float(comp))*temp_unit_num))
                                     temp_len = len(str(temp_unit_num))
                                     len_gap = comp_len - origin_len
                                     if len_gap == 6 or temp_len + len_gap == 6:
@@ -290,13 +294,11 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                                         temp_unit_str = '천원'
                                     elif len_gap == 0 or temp_len + len_gap == 0:
                                         temp_unit_str = '원'
-                                    else:
-                                        temp_unit_str = '원' # 찾는 단위 없을 경우 기본 값 (추후 수정 가능성 있음)
 
-                                    unit_info[i]['str'] = {
-                                        'name': 'p',
-                                        'data': BeautifulSoup('<p>(단위:'+temp_unit_str+')</p>', 'html.parser')
-                                        }
+                unit_info[i]['str'] = {
+                    'name': 'p',
+                    'data': BeautifulSoup('<p>(단위:'+temp_unit_str+')</p>', 'html.parser')
+                    }
 
         # checkForeign = False
         # for i in range(int(len(fs_data)/2)):
@@ -306,7 +308,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
         #         select_tags = [unit_info[i]['str']['data']]
         #     for tag in select_tags:
         #         tag_text = tag.text.replace(' ','')
-        #         if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+        #         if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text and no_ness_unit_words[1] not in tag_text:
         #             for j in range(len(unit_words_for)):
         #                 if unit_words_for[j] in tag_text:
         #                     checkForeign = True
@@ -328,7 +330,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                 select_tags = [unit_info[i]['str']['data']]
             for tag in select_tags:
                 tag_text = tag.text.replace(' ','')
-                if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text:
+                if ness_unit_words[0] in tag_text and no_ness_unit_words[0] not in tag_text and no_ness_unit_words[1] not in tag_text:
                     for j in range(len(unit_words)):
                         if unit_words[j] in tag_text:
                             unit_info[i]['num'] = unit_numbers[j]
@@ -376,20 +378,25 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                 for row_name in row_name_list:
                     row = get_row_value(fs_data[i],row_name=row_name)
                     if row is not None:
-                        row = str(row)
+                        row = str(row).replace(',','')
+                        
+                        # 오타 수정
+                        if corp_code ==  '01003040':
+                            row = row.replace('.',',')
+
                         if '-' == row or '' == row:
                             row = 0
                         elif '△' in row:
-                            row = row.replace('△', '').replace(',','')
+                            row = row.replace('△', '')
                             row = int(row) * -1
                         elif 'Δ' in row:
-                            row = row.replace('Δ', '').replace(',','')
+                            row = row.replace('Δ', '')
                             row = int(row) * -1
                         elif '(' in row:
-                            row = row.replace('(', '').replace(')', '').replace(',','')
+                            row = row.replace('(', '').replace(')', '')
                             row = int(row) * -1
                         else:
-                            row = row.replace(',','')
+                            row = row
                             row = int(row)
                         result['재무제표'][dvsn][row_name] = row * unit_info[i]['num']
     
@@ -424,16 +431,21 @@ def insert_data():
     # corp_list_skip.append({'corp_code': '01064069', 'corp_name': '토박스코리아', 'stock_code': '215480', 'modify_date': '20211210'})
     # corp_list_skip.append({'corp_code': '00145738', 'corp_name': '이화전기', 'stock_code': '024810', 'modify_date': '20211214'})
     # corp_list_skip.append({'corp_code': '00141608', 'corp_name': '오리엔탈정공', 'stock_code': '014940', 'modify_date': '20211209'})
-    corp_list_skip.append({'corp_code': '00353230', 'corp_name': '프리젠', 'stock_code': '060910', 'modify_date': '20210817'})
+    # corp_list_skip.append({'corp_code': '00353230', 'corp_name': '프리젠', 'stock_code': '060910', 'modify_date': '20210817'})
+    # corp_list_skip.append({'corp_code': '00867849', 'corp_name': '오파스넷', 'stock_code': '173130', 'modify_date': '20220210'})
+    # corp_list_skip.append({'corp_code': '00173069', 'corp_name': '아진카인텍', 'stock_code': '011400', 'modify_date': '20220224'})
+    # corp_list_skip.append({'corp_code': '01003040', 'corp_name': '케이사인', 'stock_code': '192250', 'modify_date': '20220222'})
+    # corp_list_skip.append({'corp_code': '00139454', 'corp_name': '애경산업', 'stock_code': '018250', 'modify_date': '20220516'})
+    corp_list_skip.append({'corp_code': '01350638', 'corp_name': '티티씨디펜스', 'stock_code': '309900', 'modify_date': '20220616'})
     if len(corp_list_skip) > 0:
         corp_list = corp_list_skip
     else:
         corp_list = get_corp_code()
     
     limit_year = 10
-    adjust_year = 1
+    adjust_year = 1 # 최초 시작 년도 조정 (-n년 전부터 시작)
     now = datetime.datetime.now()
-    for i in range(limit_year):
+    for i in range(limit_year-adjust_year):
         ymd_from = str(now.year-i-adjust_year) + '0101' #str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
         ymd_to = str(now.year-i-adjust_year) + '1231' #str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0')
 
@@ -456,8 +468,8 @@ def insert_data():
                     }
                 
                 all_data[corp_info['corp_code']]['data'][str(now.year-i-1)] = get_custom_data(corp_info['corp_code'], ymd_from, ymd_to)
+                write_json('./data/', 'all_data' + '.json', all_data, True)
                 time.sleep(1)
-        write_json('./data/', 'all_data' + '.json', all_data, True)
 
     # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
     # for data in corp_data:
