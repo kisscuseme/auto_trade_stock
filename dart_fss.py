@@ -173,6 +173,8 @@ def get_row_value(data, row_name=None, index=1, only_check=False):
                             if row_name in row_list[i]:
                                 val = val_list[i]
                                 break
+                    elif val == 'nan':
+                        return None
                 return val
     return None
 
