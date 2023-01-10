@@ -29,6 +29,7 @@ browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 all_data = all_data = read_json('./data/', 'all_data' + '.json')
 skip_corp = read_json('./data/', 'skip_corp' + '.json')
 except_corp_code = [] #['01476219']
+current_corp_code = None
 
 # 기업 코드 ex) [{'corp_code': '00126380', 'corp_name': '삼성전자', 'stock_code': '005930', 'modify_date': '20220509'}]
 def get_corp_code(name=None, match=None):
@@ -165,6 +166,7 @@ def get_column_name(data, col_name=None, index=0):
     return result
 
 def get_row_value(data, row_name=None, index=1, only_check=False):
+    global current_corp_code
     df = get_df_data(data)
     for i in range(len(df)):
         if len(df.iloc[i]) > 1:
@@ -191,6 +193,16 @@ def get_row_value(data, row_name=None, index=1, only_check=False):
                                 break
                     elif val == 'nan':
                         return None
+                
+                # 특정 회사 별도 처리 (구분 컬럼이 2칸 차지하는 경우)
+                if current_corp_code ==  '00168331':
+                    if not val.isdigit():
+                        for j in range(len(df.iloc[i])):
+                            if j > 1:
+                                val = str(df.iloc[i][j])
+                                print(val)
+                                if val.isdigit():
+                                    break
                 return val
     return None
 
@@ -424,7 +436,7 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
     return result
 
 def insert_data():
-    global all_data, skip_corp
+    global all_data, skip_corp, current_corp_code
     corp_list = None
     corp_list_skip = []
     # corp_list_skip.append({'corp_code': '00956028', 'corp_name': '엑세스바이오', 'stock_code': '950130', 'modify_date': '20170630'})
@@ -447,7 +459,8 @@ def insert_data():
     # corp_list_skip.append({'corp_code': '00173069', 'corp_name': '아진카인텍', 'stock_code': '011400', 'modify_date': '20220224'})
     # corp_list_skip.append({'corp_code': '01003040', 'corp_name': '케이사인', 'stock_code': '192250', 'modify_date': '20220222'})
     # corp_list_skip.append({'corp_code': '00139454', 'corp_name': '애경산업', 'stock_code': '018250', 'modify_date': '20220516'})
-    corp_list_skip.append({'corp_code': '01350638', 'corp_name': '티티씨디펜스', 'stock_code': '309900', 'modify_date': '20220616'})
+    # corp_list_skip.append({'corp_code': '01350638', 'corp_name': '티티씨디펜스', 'stock_code': '309900', 'modify_date': '20220616'})
+    corp_list_skip.append({'corp_code': '00168331', 'corp_name': '국동', 'stock_code': '005320', 'modify_date': '20221201'})
     if len(corp_list_skip) > 0:
         corp_list = corp_list_skip
     else:
@@ -465,24 +478,26 @@ def insert_data():
         for corp_info in corp_list:
             print(corp_info)
 
-            if skip_corp is not None and skip_corp.get(corp_info['corp_code']):
-                skip_year_list = skip_corp[corp_info['corp_code']].split(',')
+            current_corp_code = corp_info['corp_code']
+
+            if skip_corp is not None and skip_corp.get(current_corp_code):
+                skip_year_list = skip_corp[current_corp_code].split(',')
             else:
                 skip_year_list = []
             
-            if str(now.year-1-i)+"0101" not in skip_year_list and (all_data.get(corp_info['corp_code']) is None or (all_data.get(corp_info['corp_code']) is not None and all_data[corp_info['corp_code']]['data'].get(str(now.year-i-1)) is None)):
-                if all_data.get(corp_info['corp_code']) is None:
-                    all_data[corp_info['corp_code']] = {
+            if str(now.year-1-i)+"0101" not in skip_year_list and (all_data.get(current_corp_code) is None or (all_data.get(current_corp_code) is not None and all_data[current_corp_code]['data'].get(str(now.year-i-1)) is None)):
+                if all_data.get(current_corp_code) is None:
+                    all_data[current_corp_code] = {
                         'name': corp_info['corp_name'],
                         'stock_code': corp_info['stock_code'],
                         'data': {}
                     }
                 
-                all_data[corp_info['corp_code']]['data'][str(now.year-i-1)] = get_custom_data(corp_info['corp_code'], ymd_from, ymd_to)
+                all_data[current_corp_code]['data'][str(now.year-i-1)] = get_custom_data(current_corp_code, ymd_from, ymd_to)
                 write_json('./data/', 'all_data' + '.json', all_data, True)
                 time.sleep(1)
 
-    # corp_data = get_corp_data_by_api(corp_info['corp_code'], '2019', '11011', all_div=False)
+    # corp_data = get_corp_data_by_api(current_corp_code, '2019', '11011', all_div=False)
     # for data in corp_data:
     #     print(data)
 
