@@ -460,7 +460,8 @@ def insert_data():
     # corp_list_skip.append({'corp_code': '01003040', 'corp_name': '케이사인', 'stock_code': '192250', 'modify_date': '20220222'})
     # corp_list_skip.append({'corp_code': '00139454', 'corp_name': '애경산업', 'stock_code': '018250', 'modify_date': '20220516'})
     # corp_list_skip.append({'corp_code': '01350638', 'corp_name': '티티씨디펜스', 'stock_code': '309900', 'modify_date': '20220616'})
-    corp_list_skip.append({'corp_code': '00168331', 'corp_name': '국동', 'stock_code': '005320', 'modify_date': '20221201'})
+    # corp_list_skip.append({'corp_code': '00168331', 'corp_name': '국동', 'stock_code': '005320', 'modify_date': '20221201'})
+    corp_list_skip.append({'corp_code': '00957568', 'corp_name': '에스엘바이오닉스', 'stock_code': '214310', 'modify_date': '20221201'})
     if len(corp_list_skip) > 0:
         corp_list = corp_list_skip
     else:
