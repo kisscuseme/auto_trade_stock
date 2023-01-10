@@ -151,6 +151,19 @@ def get_ness_data(data, ness_words):
         result = get_target_data(result, [word])
     return result
 
+def get_column_name(data, col_name=None, index=0):
+    df = get_df_data(data)
+    result = []
+    col_list = df.columns.get_level_values(-1)
+    if len(col_list) > index:
+        for i in range(len(col_list)):
+            if col_name is None and index == i:
+                if i == index:
+                    result.append(col_list[i])
+            elif col_name is not None and col_name in str(col_list[i]).replace(' ',''):
+                result.append(col_list[i])
+    return result
+
 def get_row_value(data, row_name=None, index=1, only_check=False):
     df = get_df_data(data)
     for i in range(len(df)):
@@ -180,13 +193,6 @@ def get_row_value(data, row_name=None, index=1, only_check=False):
                         return None
                 return val
     return None
-
-def get_column_name(df, col_name=None):
-    result = []
-    for col in df.columns.get_level_values(-1):
-        if col_name in str(col).replace(' ',''):
-            result.append(col)
-    return result
 
 def get_custom_data(corp_code, ymd_from, ymd_to):
     global skip_corp
@@ -259,6 +265,11 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                     temp_unit_num = None
                     if  fs_data[i]['index'] < table['index']:
                         comp = get_row_value(table, row_name=check_row_name)
+                        col1 = get_column_name(table, index=1)
+                        col2 = get_column_name(table, index=2)
+                        if len(col1) > 0 and len(col2) > 0 and str(col1[0]) == str(col2[0]).replace('.1',''):
+                            if not str(comp).isdigit():
+                                comp = get_row_value(table, row_name=check_row_name, index=2)
                         if comp is not None:
                             for unit in unit_data:
                                 if fs_data[i]['index'] < unit['index'] <= table['index']:
@@ -388,16 +399,16 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
                             row = 0
                         elif '△' in row:
                             row = row.replace('△', '')
-                            row = int(row) * -1
+                            row = int(float(row)) * -1
                         elif 'Δ' in row:
                             row = row.replace('Δ', '')
-                            row = int(row) * -1
+                            row = int(float(row)) * -1
                         elif '(' in row:
                             row = row.replace('(', '').replace(')', '')
-                            row = int(row) * -1
+                            row = int(float(row)) * -1
                         else:
                             row = row
-                            row = int(row)
+                            row = int(float(row))
                         result['재무제표'][dvsn][row_name] = row * unit_info[i]['num']
     
     if len(result['재무제표']['연결']) == 0 and len(result['재무제표']['별도']) == 0:
