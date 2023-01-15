@@ -229,6 +229,9 @@ def get_custom_data(corp_code, ymd_from, ymd_to):
         p_data = get_tag_data(index_data, 'p')
         fs_data = get_ness_data(table_data, row_name_list)
 
+        print(get_df_data(fs_data[0]))
+        print(get_row_value(fs_data[0], '매출액'))
+
         # 단위
         ness_unit_words = ['단위:']
         no_ness_unit_words = ['주당','회사수']
