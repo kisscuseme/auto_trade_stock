@@ -46,3 +46,6 @@ def show(corp_code, date):
     rows = cur.fetchall()
     for row in rows:
         print(row)
+
+if __name__ == "__main__":
+    init_db()

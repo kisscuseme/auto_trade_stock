@@ -5,13 +5,13 @@ from io import BytesIO
 from dotenv import load_dotenv
 import os
 from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
+# from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.microsoft import EdgeChromiumDriverManager
 import datetime
 import time
 from bs4 import BeautifulSoup
 import pandas as pd
 from util import write_json, read_json
-import math
 
 load_dotenv()
 
@@ -19,12 +19,12 @@ crtfc_key = os.getenv('CRTFC_KEY')
 headers = {"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36"}
 user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36"
 
-options = webdriver.ChromeOptions()
+options = webdriver.EdgeOptions()
 options.add_argument('--headless')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
-browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
+browser = webdriver.Edge(EdgeChromiumDriverManager().install(),options=options)
 
 all_data = all_data = read_json('./data/', 'all_data' + '.json')
 skip_corp = read_json('./data/', 'skip_corp' + '.json')
@@ -81,7 +81,7 @@ def get_corp_data_by_api(corp_code, bsns_year, reprt_code, fs_div='OFS', sj_div=
 def get_corp_data_by_web(corp_code, ymd_from, ymd_to):
     global browser
     if browser is None:
-        browser = webdriver.Chrome(ChromeDriverManager().install(), options=webdriver.ChromeOptions())
+        browser = webdriver.Edge(EdgeChromiumDriverManager().install(), options=webdriver.EdgeOptions())
     data = {
         "textCrpCik": corp_code,
         "startDate": ymd_from,
