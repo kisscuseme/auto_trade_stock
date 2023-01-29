@@ -2,10 +2,13 @@ import win32gui
 import win32con
 import win32api
 
-hwnd = win32gui.FindWindow(None, "제목 없음 - Windows 메모장")
+kor_notepad = "제목 없음 - Windows 메모장"
+eng_notepad = "Untitled - Notepad"
+
+hwnd = win32gui.FindWindow(None, kor_notepad)
 
 if hwnd == 0:
-    hwnd = win32gui.FindWindow(None, "*제목 없음 - Windows 메모장")
+    hwnd = win32gui.FindWindow(None, "*"+kor_notepad)
 
 if hwnd != 0:
     edit = win32gui.GetDlgItem(hwnd, 0xF)
