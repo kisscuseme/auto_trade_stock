@@ -2,6 +2,7 @@ from login import login, version
 from dotenv import load_dotenv
 import os
 import time
+import datetime
 
 load_dotenv()
 
@@ -90,6 +91,24 @@ if __name__ == "__main__":
         print(codes)
     else:
         print("조건없음")
+    
+    # 문자열로 오늘 날짜 얻기
+    now = datetime.datetime.now()
+    today = now.strftime("%Y%m%d")
+
+    # df = kiwoom.block_request("opt10001",
+    #                       종목코드="005930",
+    #                       output="주식기본정보",
+    #                       next=0)
+    # print(df)
+
+    df = kiwoom.block_request("opt10081",
+                          종목코드="005930",
+                          기준일자=today,
+                          수정주가구분=1,
+                          output="주식일봉차트조회",
+                          next=0)
+    print(df)
 
     # sRQName	사용자가 임의로 지정할 수 있는 이름입니다. (예: "삼성전자주문")
     # sScreenNO	화면번호로 "0"을 제외한 4자리의 문자열을 사용합니다. (예: "1000")
