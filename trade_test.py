@@ -1,4 +1,4 @@
-from login import kiwoom, login, version
+from login import login, version
 from dotenv import load_dotenv
 import os
 import time
@@ -10,10 +10,10 @@ if __name__ == "__main__":
     user_pass = os.getenv('USER_PASS')
     user_cert = os.getenv('CERT_PASS')
 
-    # version(user_id, user_pass)
-    time.sleep(1)
+    version(user_id, user_pass)
+    time.sleep(2)
     kiwoom = login(user_id, user_pass)
-    time.sleep(1)
+    time.sleep(2)
 
     account_num = kiwoom.GetLoginInfo("ACCOUNT_CNT")        # 전체 계좌수
     accounts = kiwoom.GetLoginInfo("ACCNO")                 # 전체 계좌 리스트
