@@ -99,4 +99,4 @@ def get_df(ticker, interval, input_date):
 
 if __name__ == "__main__":
     init_db()
-    # create_trade_data()
+    create_trade_data()
