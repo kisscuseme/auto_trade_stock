@@ -3,32 +3,38 @@ from dotenv import load_dotenv
 import os
 import time
 import datetime
+import pandas as pd
+from db import *
 
-load_dotenv()
+def insert(df, ticker, interval):
+    init_db()
+    for i in range(len(df)):
+        date = df['일자'].iloc[i]
+        open = df['시가'].iloc[i]
+        high = df['고가'].iloc[i]
+        low = df['저가'].iloc[i]
+        close = df['현재가'].iloc[i]
+        volume = df['거래량'].iloc[i]
+        insert_trade_data(ticker, interval, date, open, high, low, close, volume)
+    commit()
 
 if __name__ == "__main__":
+    load_dotenv()
     user_id = os.getenv('USER_ID')
     user_pass = os.getenv('USER_PASS')
     user_cert = os.getenv('CERT_PASS')
 
+    # 버전 처리
     version(user_id, user_pass)
     time.sleep(2)
+
+    # 로그인 처리
     kiwoom = login(user_id, user_pass)
     time.sleep(2)
 
-    account_num = kiwoom.GetLoginInfo("ACCOUNT_CNT")        # 전체 계좌수
-    accounts = kiwoom.GetLoginInfo("ACCNO")                 # 전체 계좌 리스트
-    user_id = kiwoom.GetLoginInfo("USER_ID")                # 사용자 ID
-    user_name = kiwoom.GetLoginInfo("USER_NAME")            # 사용자명
-    keyboard = kiwoom.GetLoginInfo("KEY_BSECGB")            # 키보드보안 해지여부
-    firewall = kiwoom.GetLoginInfo("FIREW_SECGB")           # 방화벽 설정 여부
-
-    print(account_num)
-    print(accounts)
-    print(user_id)
-    print(user_name)
-    print(keyboard)
-    print(firewall)
+    # 전체 계좌 리스트
+    accounts = kiwoom.GetLoginInfo("ACCNO")
+    print('계좌:', accounts)
 
     # "0"  코스피
     # "3"  ELW
@@ -40,76 +46,49 @@ if __name__ == "__main__":
     # "10" 코스닥
     # "30" K-OTC
     # "50" 코넥스
+    etf = kiwoom.GetCodeListByMarket('8')
 
-    # kospi = kiwoom.GetCodeListByMarket('0')
-    # kosdaq = kiwoom.GetCodeListByMarket('10')
-    # etf = kiwoom.GetCodeListByMarket('8')
+    # 테스트 종목
+    ticker = "005930"
 
-    # print(len(kospi), kospi)
-    # print(len(kosdaq), kosdaq)
-    # print(len(etf), etf)
-
-    name = kiwoom.GetMasterCodeName("005930")
-    print(name)
-
-    stock_cnt = kiwoom.GetMasterListedStockCnt("005930")
-    print("삼성전자 상장주식수: ", stock_cnt)
-
-    감리구분 = kiwoom.GetMasterConstruction("005930")
-    print(감리구분)
-
-    상장일 = kiwoom.GetMasterListedStockDate("005930")
-    print(상장일)
-
-    전일가 = kiwoom.GetMasterLastPrice("005930")
-    print(int(전일가))
-
-    종목상태 = kiwoom.GetMasterStockState("005930")
-    print(종목상태)
-
-    group = kiwoom.GetThemeGroupList(1)
-    print(group)
-
-    tickers = kiwoom.GetThemeGroupCode('330')
-    for ticker in tickers:
-        name = kiwoom.GetMasterCodeName(ticker)
-        print(ticker, name)
+    # 종목명
+    name = kiwoom.GetMasterCodeName(ticker)
+    print(ticker, name)
 
     # 조건식을 PC로 다운로드
     kiwoom.GetConditionLoad()
 
     # 전체 조건식 리스트 얻기
     conditions = kiwoom.GetConditionNameList()
-
-    print(conditions)
-
     if len(conditions) != 0:
         # 0번 조건식에 해당하는 종목 리스트 출력
         condition_index = conditions[0][0]
         condition_name = conditions[0][1]
         codes = kiwoom.SendCondition("0101", condition_name, condition_index, 0)
         print(codes)
-    else:
-        print("조건없음")
     
     # 문자열로 오늘 날짜 얻기
-    now = datetime.datetime.now()
-    today = now.strftime("%Y%m%d")
+    # now = datetime.datetime.now()
+    # today = now.strftime("%Y%m%d")
+    # dfs = []
+    # for i in range(3):
+    #     dfs.append(kiwoom.block_request("opt10081",
+    #                         종목코드="005930",
+    #                         기준일자=today,
+    #                         수정주가구분=1,
+    #                         output="주식일봉차트조회",
+    #                         next=i*2))
+    #     time.sleep(1)
+    # df = pd.concat(dfs)
+    # insert(df, ticker, 'day')
 
-    # df = kiwoom.block_request("opt10001",
-    #                       종목코드="005930",
-    #                       output="주식기본정보",
-    #                       next=0)
-    # print(df)
-
-    df = kiwoom.block_request("opt10081",
-                          종목코드="005930",
-                          기준일자=today,
-                          수정주가구분=1,
-                          output="주식일봉차트조회",
-                          next=0)
+    init_db()
+    df = get_df(ticker, 'day', '20180101')
     print(df)
+    # delete_trade_data(ticker, 'day')
 
+    #-------------------------------------------------------------------------------------------------
+    # 주문 기능
     # sRQName	사용자가 임의로 지정할 수 있는 이름입니다. (예: "삼성전자주문")
     # sScreenNO	화면번호로 "0"을 제외한 4자리의 문자열을 사용합니다. (예: "1000")
     # sAccNo	계좌번호입니다. (예: "8140977311")
@@ -119,8 +98,9 @@ if __name__ == "__main__":
     # nPrice	주문단가입니다.
     # sHogaGb	'00': 지정가, '03': 시장가
     # sOrgOrderNo	원주문번호로 주문 정정시 사용합니다.
+    #-------------------------------------------------------------------------------------------------
 
-    # 삼성전자, 10주, 시장가주문 매수
+    # 예시) 삼성전자, 10주, 시장가주문 매수
     sRQName = "시장가매수"
     sScreenNO = "0101"
     sAccNo = accounts[0]

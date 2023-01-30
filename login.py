@@ -158,25 +158,25 @@ def version(user_id, user_pass, user_cert=None):
         print(f"로그인 대기: {remain_secs}")
 
         # 버전처리 경고창 확인
-        hwnd = find_window("opstarter")
-        if hwnd != 0:
+        alert_hwnd = find_window("opstarter")
+        if alert_hwnd != 0:
             try:
-                static_hwnd = win32gui.GetDlgItem(hwnd, 0xFFFF)
+                static_hwnd = win32gui.GetDlgItem(alert_hwnd, 0xFFFF)
                 text = win32gui.GetWindowText(static_hwnd)
                 if '버전처리' in text:
                     while sub_proc.is_alive():
                         sub_proc.kill()
                         time.sleep(1)
 
-                    click_button(win32gui.GetDlgItem(hwnd, 0x2))
+                    click_button(win32gui.GetDlgItem(alert_hwnd, 0x2))
                     secs_cnt = 90      # 버전처리이면 30초 후 종료
             except:
                 pass
 
         # 업그레이드 확인창
-        hwnd = find_window("업그레이드 확인")
-        if hwnd != 0:
-            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+        upgrade_hwnd = find_window("업그레이드 확인")
+        if upgrade_hwnd != 0:
+            win32gui.PostMessage(upgrade_hwnd, win32con.WM_CLOSE, 0, 0)
 
         # 버전처리가 있는 경우의 종료
         if secs_cnt > 120:
@@ -188,104 +188,8 @@ def version(user_id, user_pass, user_cert=None):
             break
 
         secs_cnt += 1
-
+    
     print("버전처리 완료")
-
-    # 자동 로그인 재설정
-    turn_on_auto()
-
-
-def login(user_id, user_pass, user_cert=None):
-    print("로그인 시작")
-    q = mp.Queue()
-
-    # 자동 로그인 해제
-    turn_off_auto()
-
-    login_proc = mp.Process(target=KiwoomOpenApiWindow, name="Login Process", args=(q,), daemon=True)
-    login_proc.start()
-
-    waiting_cnt = 0
-    while True:
-        caption = "Open API Login"
-        hwnd = find_window(caption)
-
-        if hwnd == 0:
-            waiting_cnt += 1
-            print("로그인 창 대기:", waiting_cnt)
-            time.sleep(1)
-            continue
-        else:
-            break
-
-    time.sleep(2)
-    edit_id   = win32gui.GetDlgItem(hwnd, 0x3E8)
-    edit_pass = win32gui.GetDlgItem(hwnd, 0x3E9)
-    edit_cert = win32gui.GetDlgItem(hwnd, 0x3EA)
-    btn_login = win32gui.GetDlgItem(hwnd, 0x1)
-
-    if user_cert is None:
-        if win32gui.IsWindowEnabled(win32gui.GetDlgItem(hwnd, 0x3EA)):
-            click_button(win32gui.GetDlgItem(hwnd, 0x3ED))
-    else:
-        if not win32gui.IsWindowEnabled(win32gui.GetDlgItem(hwnd, 0x3EA)):
-            click_button(win32gui.GetDlgItem(hwnd, 0x3ED))
-
-    double_click(15, 15, edit_id)
-    enter_keys(edit_id, user_id) 
-    time.sleep(0.5)
-
-    double_click(15, 15, edit_pass)
-    enter_keys(edit_pass, user_pass) 
-    time.sleep(0.5)
-
-    if user_cert is not None:
-        double_click(15, 15, edit_cert)
-        enter_keys(edit_cert, user_cert) 
-        time.sleep(0.5)
-
-    click_button(btn_login)   
-
-    secs_cnt = 0
-    while True:
-        time.sleep(1)
-        remain_secs = 120 - secs_cnt
-        print(f"로그인 대기: {remain_secs}")
-
-        # 버전처리 경고창 확인
-        hwnd = find_window("opstarter")
-        if hwnd != 0:
-            try:
-                static_hwnd = win32gui.GetDlgItem(hwnd, 0xFFFF)
-                text = win32gui.GetWindowText(static_hwnd)
-                if '버전처리' in text:
-                    while login_proc.is_alive():
-                        login_proc.kill()
-                        time.sleep(1)
-
-                    click_button(win32gui.GetDlgItem(hwnd, 0x2))
-                    secs_cnt = 90      # 버전처리이면 30초 후 종료
-            except:
-                pass
-
-        # 업그레이드 확인창
-        hwnd = find_window("업그레이드 확인")
-        if hwnd != 0:
-            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-
-        # 버전처리가 있는 경우의 종료
-        if secs_cnt > 120:
-            break
-
-        # 버전처리가 없는 경우의 종료
-        if not q.empty():
-            data = q.get()
-            break
-
-        secs_cnt += 1
-
-    print("로그인 완료")
-
 
     # 자동 로그인 재설정
     turn_on_auto()
@@ -295,7 +199,6 @@ def auto_fill(user_id, user_pass, user_cert=None):
     while True:
         caption = "Open API Login"
         hwnd = find_window(caption)
-
         if hwnd == 0:
             waiting_cnt += 1
             print("로그인 창 대기:", waiting_cnt)
@@ -335,8 +238,10 @@ def auto_fill(user_id, user_pass, user_cert=None):
 def login(user_id, user_pass, user_cert=None):
     print("로그인 시작")
 
-    login_proc = mp.Process(target=auto_fill, name="Login Process", args=(user_id, user_pass, user_cert), daemon=True)
-    login_proc.start()
+    login_sub_proc = mp.Process(target=auto_fill, name="Login Sub Process", args=(user_id, user_pass, user_cert), daemon=True)
+    login_sub_proc.start()
+
+    time.sleep(2)
 
     kiwoom = Kiwoom()
     kiwoom.CommConnect(block=True)
