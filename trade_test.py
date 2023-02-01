@@ -44,6 +44,10 @@ if __name__ == "__main__":
     # "50" 코넥스
     etf = kiwoom.GetCodeListByMarket('8')
 
+    for ticker in etf:
+        name = kiwoom.GetMasterCodeName(ticker)
+        print(ticker, name)
+
     # 테스트 종목
     ticker = "005930"
 
@@ -96,3 +100,4 @@ if __name__ == "__main__":
     sOrgOrderNo = ""
 
     # kiwoom.SendOrder(sRQName, sScreenNO, sAccNo, nOrderType, sCode, nQty, nPrice, sHogaGb, sOrgOrderNo)
+    

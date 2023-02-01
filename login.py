@@ -1,7 +1,6 @@
 import sys 
 from PyQt5.QtWidgets import *
 from PyQt5.QAxContainer import *
-import pythoncom
 import win32gui
 import win32con
 import win32api
