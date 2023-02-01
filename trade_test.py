@@ -1,4 +1,4 @@
-from login import login, version
+from login import login
 from dotenv import load_dotenv
 import os
 import time
@@ -23,10 +23,6 @@ if __name__ == "__main__":
     user_id = os.getenv('USER_ID')
     user_pass = os.getenv('USER_PASS')
     user_cert = os.getenv('CERT_PASS')
-
-    # 버전 처리
-    version(user_id, user_pass)
-    time.sleep(2)
 
     # 로그인 처리
     kiwoom = login(user_id, user_pass)
@@ -54,18 +50,6 @@ if __name__ == "__main__":
     # 종목명
     name = kiwoom.GetMasterCodeName(ticker)
     print(ticker, name)
-
-    # 조건식을 PC로 다운로드
-    kiwoom.GetConditionLoad()
-
-    # 전체 조건식 리스트 얻기
-    conditions = kiwoom.GetConditionNameList()
-    if len(conditions) != 0:
-        # 0번 조건식에 해당하는 종목 리스트 출력
-        condition_index = conditions[0][0]
-        condition_name = conditions[0][1]
-        codes = kiwoom.SendCondition("0101", condition_name, condition_index, 0)
-        print(codes)
     
     # 문자열로 오늘 날짜 얻기
     # now = datetime.datetime.now()
