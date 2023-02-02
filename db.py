@@ -63,7 +63,7 @@ def delete_corp_data(corp_code, date):
         [(corp_code, date)]
     )
 
-def show_trade_data(ticker, interval, date):
+def show_trade_data(ticker, interval, date='19700101'):
     global cur
     sql = "SELECT * FROM trade_data WHERE ticker = '{0}' AND interval = '{1}' AND date >= '{2}'"
     cur.execute(sql.format(ticker, interval, date))
@@ -79,7 +79,26 @@ def show_corp_data(corp_code, date):
     for row in rows:
         print(row)
 
-def get_df(ticker, interval, input_date):
+def get_etf():
+    sql = "SELECT distinct ticker FROM trade_data"
+    cur.execute(sql)
+    rows = cur.fetchall()
+    etf = []
+    for row in rows:
+        etf.append(row[0])
+    return etf
+
+def get_from_date():
+    sql = "SELECT min(date) FROM trade_data group by ticker order by min(date) desc"
+    cur.execute(sql)
+    rows = cur.fetchall()
+    date = None
+    for row in rows:
+        date = row[0]
+        break
+    return date
+
+def get_df(ticker, interval, input_date='19700101'):
     sql = "SELECT * FROM trade_data WHERE ticker = '{0}' AND interval = '{1}' AND date >= '{2}'"
     cur.execute(sql.format(ticker, interval, input_date))
     ohlcv_data = []
@@ -94,6 +113,8 @@ def get_df(ticker, interval, input_date):
     df['date'] = df['date'] + datetime.timedelta(hours=0)
     df = df.set_index('date')
     df.index.name = None
+
+    print(df)
 
     return df
 

@@ -6,8 +6,11 @@ import datetime
 import pandas as pd
 from db import *
 
+kiwoom = None
+
 def insert(df, ticker, interval):
     delete_trade_data(ticker, interval)
+    commit()
     for i in range(len(df)):
         date = df['일자'].iloc[i]
         open = df['시가'].iloc[i]
@@ -18,21 +21,32 @@ def insert(df, ticker, interval):
         insert_trade_data(ticker, interval, date, open, high, low, close, volume)
     commit()
 
-def get_tr(ticker, count=3):
-    dfs = []
-    now = datetime.datetime.now()
-    today = now.strftime("%Y%m%d")
-    last_ticker = '0'
-    start_date = kiwoom.GetMasterListedStockDate(ticker)
-
-        for i in range(count):
-            dfs.append(kiwoom.block_request("opt10081",
-                                종목코드=ticker,
-                                기준일자=today,
-                                수정주가구분=1,
-                                output="주식일봉차트조회",
-                                next=i*2))
-    return pd.concat(dfs)
+def get_tr(etf, last_ticker, count=3):
+    try:
+        now = datetime.datetime.now()
+        today = now.strftime("%Y%m%d")
+        count = 3
+        for ticker in etf:
+            start_date = kiwoom.GetMasterListedStockDate(ticker)
+            if start_date < now - datetime.timedelta(600*count) and ticker >= last_ticker:
+                name = kiwoom.GetMasterCodeName(ticker)
+                print(ticker, name, start_date)
+                dfs = []
+                last_ticker = ticker
+                for i in range(count):
+                    dfs.append(kiwoom.block_request("opt10081",
+                                        종목코드=ticker,
+                                        기준일자=today,
+                                        수정주가구분=1,
+                                        output="주식일봉차트조회",
+                                        next=i*2))
+                    time.sleep(3.6)
+                df = pd.concat(dfs)
+                insert(df, ticker, 'day')
+    except Exception as ex:
+        print('재시도', ex)
+        time.sleep(3.6)
+        get_tr(etf, last_ticker, count)
 
 
 if __name__ == "__main__":
@@ -44,12 +58,12 @@ if __name__ == "__main__":
     user_cert = os.getenv('CERT_PASS')
 
     # 로그인 처리
-    kiwoom = login(user_id, user_pass, user_cert)
+    # kiwoom = login(user_id, user_pass, user_cert)
     time.sleep(2)
 
     # 전체 계좌 리스트
-    accounts = kiwoom.GetLoginInfo("ACCNO")
-    print('계좌:', accounts)
+    # accounts = kiwoom.GetLoginInfo("ACCNO")
+    # print('계좌:', accounts)
 
     # "0"  코스피
     # "3"  ELW
@@ -61,7 +75,8 @@ if __name__ == "__main__":
     # "10" 코스닥
     # "30" K-OTC
     # "50" 코넥스
-    etf = kiwoom.GetCodeListByMarket('8')
+    # etf = kiwoom.GetCodeListByMarket('8')
+    # get_tr(etf, last_ticker='0', count=3)
 
     # 테스트 종목
     # ticker = "005930"
@@ -69,24 +84,14 @@ if __name__ == "__main__":
     # 종목명
     # name = kiwoom.GetMasterCodeName(ticker)
     # print(ticker, name)
-    
-    # 문자열로 오늘 날짜 얻기
-    now = datetime.datetime.now()
-    today = now.strftime("%Y%m%d")
-    count = 3
-    dfs = []
-    # etf = ['114260'] # test
-    last_ticker = '252670'
-    for ticker in etf:
-    if start_date < now - datetime.timedelta(600*count) and ticker >= last_ticker:
-        name = kiwoom.GetMasterCodeName(ticker)
-        print(ticker, name, start_date)
-        df = get_tr(ticker, count)
-        insert(df, ticker, 'day')
-        time.sleep(3.6)
 
-    # df = get_df(ticker, 'day', start_date.strftime("%Y%m%d"))
-    # print(df)
+    etf = get_etf()
+    print(etf)
+    date = get_from_date()
+    print(date)
+    for ticker in etf:
+        df = get_df(ticker, 'day', input_date=date)
+        print(df)
 
     #-------------------------------------------------------------------------------------------------
     # 주문 기능
@@ -102,15 +107,15 @@ if __name__ == "__main__":
     #-------------------------------------------------------------------------------------------------
 
     # 예시) 삼성전자, 10주, 시장가주문 매수
-    sRQName = "시장가매수"
-    sScreenNO = "0101"
-    sAccNo = accounts[0]
-    nOrderType = 1
-    sCode = "005930"
-    nQty = 10
-    nPrice = 0
-    sHogaGb = "03"
-    sOrgOrderNo = ""
+    # sRQName = "시장가매수"
+    # sScreenNO = "0101"
+    # sAccNo = accounts[0]
+    # nOrderType = 1
+    # sCode = "005930"
+    # nQty = 10
+    # nPrice = 0
+    # sHogaGb = "03"
+    # sOrgOrderNo = ""
 
     # kiwoom.SendOrder(sRQName, sScreenNO, sAccNo, nOrderType, sCode, nQty, nPrice, sHogaGb, sOrgOrderNo)
     
