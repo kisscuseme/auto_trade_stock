@@ -7,7 +7,6 @@ import pandas as pd
 from db import *
 
 def insert(df, ticker, interval):
-    init_db()
     delete_trade_data(ticker, interval)
     for i in range(len(df)):
         date = df['일자'].iloc[i]
@@ -19,14 +18,33 @@ def insert(df, ticker, interval):
         insert_trade_data(ticker, interval, date, open, high, low, close, volume)
     commit()
 
+def get_tr(ticker, count=3):
+    dfs = []
+    now = datetime.datetime.now()
+    today = now.strftime("%Y%m%d")
+    last_ticker = '0'
+    start_date = kiwoom.GetMasterListedStockDate(ticker)
+
+        for i in range(count):
+            dfs.append(kiwoom.block_request("opt10081",
+                                종목코드=ticker,
+                                기준일자=today,
+                                수정주가구분=1,
+                                output="주식일봉차트조회",
+                                next=i*2))
+    return pd.concat(dfs)
+
+
 if __name__ == "__main__":
     load_dotenv()
+    init_db()
+    
     user_id = os.getenv('USER_ID')
     user_pass = os.getenv('USER_PASS')
     user_cert = os.getenv('CERT_PASS')
 
     # 로그인 처리
-    kiwoom = login(user_id, user_pass)
+    kiwoom = login(user_id, user_pass, user_cert)
     time.sleep(2)
 
     # 전체 계좌 리스트
@@ -56,29 +74,17 @@ if __name__ == "__main__":
     now = datetime.datetime.now()
     today = now.strftime("%Y%m%d")
     count = 3
-    target_etf = []
     dfs = []
+    # etf = ['114260'] # test
+    last_ticker = '252670'
     for ticker in etf:
+    if start_date < now - datetime.timedelta(600*count) and ticker >= last_ticker:
         name = kiwoom.GetMasterCodeName(ticker)
-        start_date = kiwoom.GetMasterListedStockDate(ticker)
         print(ticker, name, start_date)
-        
-        if start_date < now - datetime.timedelta(600*count):
-            target_etf.append(ticker)
-    
-    for ticker in target_etf:
-        for i in range(count):
-            dfs.append(kiwoom.block_request("opt10081",
-                                종목코드=ticker,
-                                기준일자=today,
-                                수정주가구분=1,
-                                output="주식일봉차트조회",
-                                next=i*2))
-            time.sleep(3.6)
-        df = pd.concat(dfs)
+        df = get_tr(ticker, count)
         insert(df, ticker, 'day')
+        time.sleep(3.6)
 
-    # init_db()
     # df = get_df(ticker, 'day', start_date.strftime("%Y%m%d"))
     # print(df)
 
