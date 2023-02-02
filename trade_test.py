@@ -8,6 +8,7 @@ from db import *
 
 def insert(df, ticker, interval):
     init_db()
+    delete_trade_data(ticker, interval)
     for i in range(len(df)):
         date = df['일자'].iloc[i]
         open = df['시가'].iloc[i]
@@ -44,36 +45,42 @@ if __name__ == "__main__":
     # "50" 코넥스
     etf = kiwoom.GetCodeListByMarket('8')
 
-    for ticker in etf:
-        name = kiwoom.GetMasterCodeName(ticker)
-        print(ticker, name)
-
     # 테스트 종목
-    ticker = "005930"
+    # ticker = "005930"
 
     # 종목명
-    name = kiwoom.GetMasterCodeName(ticker)
-    print(ticker, name)
+    # name = kiwoom.GetMasterCodeName(ticker)
+    # print(ticker, name)
     
     # 문자열로 오늘 날짜 얻기
-    # now = datetime.datetime.now()
-    # today = now.strftime("%Y%m%d")
-    # dfs = []
-    # for i in range(3):
-    #     dfs.append(kiwoom.block_request("opt10081",
-    #                         종목코드="005930",
-    #                         기준일자=today,
-    #                         수정주가구분=1,
-    #                         output="주식일봉차트조회",
-    #                         next=i*2))
-    #     time.sleep(1)
-    # df = pd.concat(dfs)
-    # insert(df, ticker, 'day')
+    now = datetime.datetime.now()
+    today = now.strftime("%Y%m%d")
+    count = 3
+    target_etf = []
+    dfs = []
+    for ticker in etf:
+        name = kiwoom.GetMasterCodeName(ticker)
+        start_date = kiwoom.GetMasterListedStockDate(ticker)
+        print(ticker, name, start_date)
+        
+        if start_date < now - datetime.timedelta(600*count):
+            target_etf.append(ticker)
+    
+    for ticker in target_etf:
+        for i in range(count):
+            dfs.append(kiwoom.block_request("opt10081",
+                                종목코드=ticker,
+                                기준일자=today,
+                                수정주가구분=1,
+                                output="주식일봉차트조회",
+                                next=i*2))
+            time.sleep(3.6)
+        df = pd.concat(dfs)
+        insert(df, ticker, 'day')
 
-    init_db()
-    df = get_df(ticker, 'day', '20180101')
-    print(df)
-    # delete_trade_data(ticker, 'day')
+    # init_db()
+    # df = get_df(ticker, 'day', start_date.strftime("%Y%m%d"))
+    # print(df)
 
     #-------------------------------------------------------------------------------------------------
     # 주문 기능
