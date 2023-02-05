@@ -1,121 +1,74 @@
-from login import login
-from dotenv import load_dotenv
-import os
+from make_log import make_log
+from util import get_num_to_str
+from balances_test import *
 import time
-import datetime
-import pandas as pd
-from db import *
+import traceback
+import math
 
-kiwoom = None
+slippage = 0.0001
+base_ls_amount = 50000000
+disabled_ls = True
 
-def insert(df, ticker, interval):
-    delete_trade_data(ticker, interval)
-    commit()
-    for i in range(len(df)):
-        date = df['일자'].iloc[i]
-        open = df['시가'].iloc[i]
-        high = df['고가'].iloc[i]
-        low = df['저가'].iloc[i]
-        close = df['현재가'].iloc[i]
-        volume = df['거래량'].iloc[i]
-        insert_trade_data(ticker, interval, date, open, high, low, close, volume)
-    commit()
-
-def get_tr(etf, last_ticker, count=3):
+def buy(pTicker, current_price, balances, change, df=None):
+    global slippage
     try:
-        now = datetime.datetime.now()
-        today = now.strftime("%Y%m%d")
-        count = 3
-        for ticker in etf:
-            start_date = kiwoom.GetMasterListedStockDate(ticker)
-            if start_date < now - datetime.timedelta(600*count) and ticker >= last_ticker:
-                name = kiwoom.GetMasterCodeName(ticker)
-                print(ticker, name, start_date)
-                dfs = []
-                last_ticker = ticker
-                for i in range(count):
-                    dfs.append(kiwoom.block_request("opt10081",
-                                        종목코드=ticker,
-                                        기준일자=today,
-                                        수정주가구분=1,
-                                        output="주식일봉차트조회",
-                                        next=i*2))
-                    time.sleep(3.6)
-                df = pd.concat(dfs)
-                insert(df, ticker, 'day')
+        local_slippage = slippage
+        balance = get_balance('KRW')['volume']
+        price = current_price
+        if change/base_ls_amount > 1:
+            local_slippage += (0.0015 * change/base_ls_amount)
+        if disabled_ls:
+            local_slippage = 0.0 #force setting
+        needs = math.ceil(change * (1.0015 + local_slippage))
+        if balance < needs:
+            needs = balance
+            change = needs / 1.0015
+        volume = math.ceil(change / price)
+
+        if get_balance(pTicker)['volume'] == 0:
+            set_balance(pTicker, volume, price)
+        else:
+            old_volume = balances[pTicker]['volume']
+            old_price = balances[pTicker]['avg_buy_price']
+            set_balance(pTicker, old_volume + volume, (old_price*old_volume + price*volume)/(old_volume+volume))
+
+        balances['KRW']['volume'] -= volume * current_price * 1.0015
+        vType = '매수'
+        log = '[' + str(df.iloc[-1].name) + '] ' + pTicker + ' --> ' + get_num_to_str(needs,point=0) + ' / price ' + get_num_to_str(price,point=2)
+        log += ' / vol. ' + get_num_to_str(volume,point=1) + ' / balance ' + get_num_to_str(get_balance('KRW')['volume'],point=0)
+        log += ' / total ' + get_num_to_str(total_balance(),point=0)
+        make_log(vType, log, sendLog=False)
+        time.sleep(0.1)
     except Exception as ex:
-        print('재시도', ex)
-        time.sleep(3.6)
-        get_tr(etf, last_ticker, count)
+        print('test_buy error!', traceback.format_exc())
 
 
-if __name__ == "__main__":
-    load_dotenv()
-    init_db()
-    
-    user_id = os.getenv('USER_ID')
-    user_pass = os.getenv('USER_PASS')
-    user_cert = os.getenv('CERT_PASS')
-
-    # 로그인 처리
-    # kiwoom = login(user_id, user_pass, user_cert)
-    time.sleep(2)
-
-    # 전체 계좌 리스트
-    # accounts = kiwoom.GetLoginInfo("ACCNO")
-    # print('계좌:', accounts)
-
-    # "0"  코스피
-    # "3"  ELW
-    # "4"  뮤추얼펀드
-    # "5"  신주인수권
-    # "6"  리츠
-    # "8"  ETF
-    # "9"  하이얼펀드
-    # "10" 코스닥
-    # "30" K-OTC
-    # "50" 코넥스
-    # etf = kiwoom.GetCodeListByMarket('8')
-    # get_tr(etf, last_ticker='0', count=3)
-
-    # 테스트 종목
-    # ticker = "005930"
-
-    # 종목명
-    # name = kiwoom.GetMasterCodeName(ticker)
-    # print(ticker, name)
-
-    etf = get_etf()
-    print(etf)
-    date = get_from_date()
-    print(date)
-    for ticker in etf:
-        df = get_df(ticker, 'day', input_date=date)
-        print(df)
-
-    #-------------------------------------------------------------------------------------------------
-    # 주문 기능
-    # sRQName	사용자가 임의로 지정할 수 있는 이름입니다. (예: "삼성전자주문")
-    # sScreenNO	화면번호로 "0"을 제외한 4자리의 문자열을 사용합니다. (예: "1000")
-    # sAccNo	계좌번호입니다. (예: "8140977311")
-    # nOrderType	주문유형입니다. (1: 매수, 2: 매도, 3: 매수취소, 4: 매도취소, 5: 매수정정, 6: 매도 정정)
-    # sCode	매매할 주식의 종목코드입니다.
-    # nQty	주문수량입니다.
-    # nPrice	주문단가입니다.
-    # sHogaGb	'00': 지정가, '03': 시장가
-    # sOrgOrderNo	원주문번호로 주문 정정시 사용합니다.
-    #-------------------------------------------------------------------------------------------------
-
-    # 예시) 삼성전자, 10주, 시장가주문 매수
-    # sRQName = "시장가매수"
-    # sScreenNO = "0101"
-    # sAccNo = accounts[0]
-    # nOrderType = 1
-    # sCode = "005930"
-    # nQty = 10
-    # nPrice = 0
-    # sHogaGb = "03"
-    # sOrgOrderNo = ""
-
-    # kiwoom.SendOrder(sRQName, sScreenNO, sAccNo, nOrderType, sCode, nQty, nPrice, sHogaGb, sOrgOrderNo)
-    
+def sell(pTicker, current_price, balances, df=None, leverage=1):
+    global slippage
+    try:
+        local_slippage = slippage
+        price = current_price
+        volume = balances[pTicker]['volume']
+        if current_price*volume/base_ls_amount > 1:
+            local_slippage += (0.0015 * current_price*volume/base_ls_amount)
+        if disabled_ls:
+            local_slippage = 0.0 #force setting
+        avg_price = balances[pTicker]['avg_buy_price']
+        change = (avg_price * volume + (price - avg_price) * volume * leverage) * (0.9985 - local_slippage)
+        balances['KRW']['volume'] += change
+        sign = ' (-) '
+        res = price > avg_price
+        if res:
+            sign = ' (+) '
+        earn_amount = change - avg_price * volume
+        earn_rate = earn_amount/(avg_price*volume)*100
+        set_balance(pTicker, 0, 1, earn_amount)
+        vType = '매도'
+        log = '[' + str(df.iloc[-1].name) + '] ' + pTicker + sign + get_num_to_str(change,point=0) + ' / rate ' + get_num_to_str(earn_rate,point=1) + '% / price ' + get_num_to_str(price,point=2)
+        log += ' / vol. ' + get_num_to_str(volume,point=1) + ' / balance ' + get_num_to_str(get_balance('KRW')['volume'],point=0)
+        log += ' / total ' + get_num_to_str(total_balance(),point=0)
+        make_log(vType, log, sendLog=False)
+        time.sleep(0.1)
+        return [earn_amount, earn_rate]
+    except Exception as ex:
+        print('test_sell error!', traceback.format_exc())

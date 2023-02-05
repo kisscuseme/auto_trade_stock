@@ -42,6 +42,17 @@ def insert_trade_data(ticker, interval, date, open, high, low, close, volume):
         [(ticker, interval, date, open, high, low, close, volume)]
     )
 
+def create_trade_meta_data():
+    conn.execute('CREATE TABLE trade_meta_data(ticker TEXT, name TEXT)')
+    conn.execute('CREATE INDEX trade_meta_data_idx1 ON trade_data(ticker)')
+
+def insert_trade_meta_data(ticker, name):
+    global cur
+    cur.executemany(
+        'INSERT INTO trade_meta_data VALUES (?, ?)',
+        [(ticker, name)]
+    )
+
 def delete_trade_data(ticker, interval):
     global cur
     cur.executemany(
@@ -79,6 +90,16 @@ def show_corp_data(corp_code, date):
     for row in rows:
         print(row)
 
+def get_ticker_name(ticker):
+    sql = "SELECT name FROM trade_meta_data WHERE ticker = '{0}'"
+    cur.execute(sql.format(ticker))
+    rows = cur.fetchall()
+    etf = None
+    for row in rows:
+        etf = row[0]
+        break
+    return etf
+
 def get_etf():
     sql = "SELECT distinct ticker FROM trade_data"
     cur.execute(sql)
@@ -96,11 +117,22 @@ def get_from_date():
     for row in rows:
         date = row[0]
         break
-    return date
+    return datetime.datetime.strptime(date, '%Y%m%d')
 
-def get_df(ticker, interval, input_date='19700101'):
-    sql = "SELECT * FROM trade_data WHERE ticker = '{0}' AND interval = '{1}' AND date >= '{2}'"
-    cur.execute(sql.format(ticker, interval, input_date))
+def get_to_date():
+    sql = "SELECT max(date) FROM trade_data group by ticker order by max(date) desc"
+    cur.execute(sql)
+    rows = cur.fetchall()
+    date = None
+    for row in rows:
+        date = row[0]
+        break
+    return datetime.datetime.strptime(date, '%Y%m%d')
+
+
+def get_df(ticker, interval, to_date, from_date='19700101'):
+    sql = "SELECT * FROM trade_data WHERE ticker = '{0}' AND interval = '{1}' AND date <= '{2}' AND date >= '{3}'"
+    cur.execute(sql.format(ticker, interval, to_date, from_date))
     ohlcv_data = []
     rows = cur.fetchall()
     for row in rows:
@@ -114,10 +146,9 @@ def get_df(ticker, interval, input_date='19700101'):
     df = df.set_index('date')
     df.index.name = None
 
-    print(df)
-
     return df
 
 if __name__ == "__main__":
     init_db()
-    create_trade_data()
+    # create_trade_data()
+    create_trade_meta_data()
