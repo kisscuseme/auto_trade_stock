@@ -103,7 +103,7 @@ def test():
     # ETF 차트 정보 로드
     dfs = []
     etf =  get_etf()
-    pick_tickers = select_tickers()
+    pick_tickers = etf #select_tickers()
     for ticker in etf:
         name = get_ticker_name(ticker)
         # if name.find('TIGER') > -1:
@@ -120,6 +120,7 @@ def test():
     # 백테스팅
     init_balance(etf)
     make_log('정보', '테스트 시작')
+    print(start_date, last_date)
     for i in range(delta+1):
         target_tickers = []
         target_tickers_only = []
@@ -139,16 +140,18 @@ def test():
 
         # 매도 로직
         for df in dfs:
-            if df['ticker'] not in target_tickers_only:
-                if get_balance(df['ticker'])['volume'] != 0:
-                    temp_df = cut_df(df['data'], i, period)
-                    now_df = temp_df[0:period+1]
-                    current_price = temp_df['open'].iloc[-1]
-                    sell(df['ticker'], current_price, balances, now_df)
+            if get_balance(df['ticker'])['volume'] != 0:
+                temp_df = cut_df(df['data'], i, period)
+                now_df = temp_df[0:period+1]
+                current_price = temp_df['open'].iloc[-1]
+                in_time = False
+                if df['ticker'] not in target_tickers_only or sell_conditions(df['ticker'], current_price, False):
+                    sell(df['ticker'], current_price, balances, now_df)           
 
         # 매수 로직
         adjust_factor = 1 #len(dfs)/(len(dfs) - len(target_tickers))/2
-        change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers)+1)*adjust_factor)
+        # change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers)+1)*adjust_factor)
+        change = math.ceil(get_balance('KRW')['volume']/(len(etf)+1))
         for target_df in target_tickers:
             if get_balance(target_df['ticker'])['volume'] == 0:
                 if change > 100000:
@@ -159,7 +162,7 @@ def test():
     
     print(balances)
     print(total_balance())
-    # write_json('./data/', 'balance' + '.json', balances, True)
+    write_json('./data/', 'balance' + '.json', balances, True)
 
 def select_tickers():
     result = []

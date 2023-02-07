@@ -82,6 +82,14 @@ def show_trade_data(ticker, interval, date='19700101'):
     for row in rows:
         print(row)
 
+def show_trade_meta_data():
+    global cur
+    sql = "SELECT * FROM trade_meta_data"
+    cur.execute(sql)
+    rows = cur.fetchall()
+    for row in rows:
+        print(row)
+
 def show_corp_data(corp_code, date):
     global cur
     sql = "SELECT * FROM corp_data WHERE corp_code = '{0}' AND date = '{1}'"
@@ -151,4 +159,6 @@ def get_df(ticker, interval, to_date, from_date='19700101'):
 if __name__ == "__main__":
     init_db()
     # create_trade_data()
-    create_trade_meta_data()
+    # create_trade_meta_data()
+    # show_trade_data('261110', 'day')
+    show_trade_meta_data()
