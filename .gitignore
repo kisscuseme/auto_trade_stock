@@ -133,3 +133,6 @@ data
 
 #etc
 trade.db
+*.mst
+*.zip
+*.dat
