@@ -100,9 +100,13 @@ def get_etf():
     target_etf.set_index(target_etf['단축코드'], inplace=True)
     etf_dict = target_etf['한글명'].to_dict()
 
+    return etf_dict
+
+def get_etf_from_kis(etf_dict, continue_ticker="0"):
     for ticker in etf_dict:
         print(ticker, etf_dict[ticker])
-        get_df_from_kis(ticker, count=1200)
+        if ticker >= continue_ticker:
+            get_df_from_kis(ticker, count=1200)
 
 def cut_df(df, index, preiod=20):
     return df[index:preiod+index+2]
@@ -119,22 +123,15 @@ def test():
 
     # ETF 차트 정보 로드
     dfs = []
-    tickers = kis.fetch_kospi_symbols()
-    etf = tickers[tickers['그룹코드'] == 'EF']
-    etf['상장일자_비교'] = pd.to_numeric(etf['상장일자'])
-    target_etf = etf[etf['상장일자_비교'] < 20180101]
-    pick_tickers = target_etf
-    for ticker in etf:
-        name = get_ticker_name(ticker)
-        # if name.find('TIGER') > -1:
-        if ticker in pick_tickers:
-            print(name)
-            dfs.append({
-                "ticker": ticker,
-                "data": get_df(ticker, 'D', to_date, from_date)})
+    target_etf = get_etf()
+    for ticker in target_etf:
+        print(target_etf[ticker])
+        dfs.append({
+            "ticker": ticker,
+            "data": get_df(ticker, 'D', to_date, from_date)})
     
     # 백테스팅
-    init_balance(etf)
+    init_balance(target_etf)
     cut_rate = 0.01
     make_log('정보', '테스트 시작')
     print(start_date, last_date)
@@ -186,4 +183,7 @@ def test():
     # write_json('./data/', 'balance' + '.json', balances, True)
 
 init(exchange="서울")
-get_etf()
+test()
+
+# get_etf()
+# print(get_df("284980","D","20230221","20180217"))
