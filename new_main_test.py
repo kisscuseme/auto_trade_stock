@@ -23,7 +23,7 @@ def init():
     
     api_key = os.getenv('API_KEY')
     api_secret = os.getenv('API_SECRET')
-    acc_no = "63673441-01" #os.getenv('ACC_NO')
+    acc_no = os.getenv('ACC_NO')
 
     # 객체 생성
     kis = KoreaInvestment(
