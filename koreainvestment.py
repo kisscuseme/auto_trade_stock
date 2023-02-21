@@ -1431,18 +1431,12 @@ class KoreaInvestment:
         if since == "":
             now = datetime.datetime.now()
             since = now.strftime("%Y%m%d")
-        else:
-            now = datetime.datetime(int(since[0:4]),int(since[4:6]),int(since[6:8]))
-
-        delta = datetime.timedelta(days=100)
-        start_day = now - delta
-        start_day = start_day.strftime("%Y%m%d")
 
         params = {
             "FID_COND_MRKT_DIV_CODE": "J",
             "FID_INPUT_ISCD": symbol,
-            "FID_INPUT_DATE_1": start_day,
-            "FID_INPUT_DATE_2": since,
+            "FID_INPUT_DATE_1": since,
+            "FID_INPUT_DATE_2": "",
             "FID_PERIOD_DIV_CODE": timeframe,
             "FID_ORG_ADJ_PRC": 0 if adj_price else 1
         }
