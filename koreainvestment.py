@@ -582,7 +582,7 @@ class KoreaInvestment:
         return res.json()
 
     def fetch_ohlcv(self, symbol: str, timeframe: str = 'D', since:str="",
-                    adj_price: bool = True) -> dict:
+                    adj_price: bool = True, market_code:str='J') -> dict:
         """fetch OHLCV (day, week, month)
         Args:
             symbol (str): 종목코드
@@ -592,7 +592,7 @@ class KoreaInvestment:
             dict: _description_
         """
         if self.exchange == '서울':
-            resp = self.fetch_ohlcv_domestic(symbol, timeframe, since, adj_price)
+            resp = self.fetch_ohlcv_domestic(symbol, timeframe, since, adj_price, market_code)
         else:
             resp = self.fetch_ohlcv_overesea(symbol, timeframe, since, adj_price)
         return resp
@@ -1407,8 +1407,9 @@ class KoreaInvestment:
         resp = requests.post(url, headers=headers, data=json.dumps(data))
         return resp.json()
 
-    def fetch_ohlcv_domestic(self, symbol: str, timeframe:str='D',
-                             since:str="", adj_price:bool=True):
+    def fetch_ohlcv_domestic(self, symbol:str, timeframe:str='D',
+                             since:str="", adj_price:bool=True,
+                             market_code:str="J"):
         """국내주식시세/국내주식 기간별 시세(일/주/월/년)
 
         Args:
@@ -1431,12 +1432,18 @@ class KoreaInvestment:
         if since == "":
             now = datetime.datetime.now()
             since = now.strftime("%Y%m%d")
+        else:
+            now = datetime.datetime(int(since[0:4]),int(since[4:6]),int(since[6:8]))
+
+        delta = datetime.timedelta(days=100)
+        start_day = now - delta
+        start_day = start_day.strftime("%Y%m%d")
 
         params = {
-            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_MRKT_DIV_CODE": market_code,
             "FID_INPUT_ISCD": symbol,
-            "FID_INPUT_DATE_1": since,
-            "FID_INPUT_DATE_2": "",
+            "FID_INPUT_DATE_1": start_day,
+            "FID_INPUT_DATE_2": since,
             "FID_PERIOD_DIV_CODE": timeframe,
             "FID_ORG_ADJ_PRC": 0 if adj_price else 1
         }
