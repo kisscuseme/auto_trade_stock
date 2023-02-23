@@ -91,12 +91,12 @@ def get_df_from_kis(ticker, since="", interval="D", count=100):
     result_df = pandas.concat(temp_dfs)
     insert(result_df, ticker, interval)
 
-def get_etf():
+def get_etf(base_date=20180101):
     tickers = kis.fetch_kospi_symbols()
     etf = tickers[tickers['그룹코드'] == 'EF']
     start_date = pd.to_numeric(etf['상장일자'])
     etf.set_index(start_date, inplace=True)
-    target_etf = etf[etf.index < 20180101]
+    target_etf = etf[etf.index < base_date]
     target_etf.set_index(target_etf['단축코드'], inplace=True)
     etf_dict = target_etf['한글명'].to_dict()
 
@@ -111,7 +111,7 @@ def get_etf_from_kis(etf_dict, continue_ticker="0"):
 def cut_df(df, index, preiod=20):
     return df[index:preiod+index+2]
 
-def test():
+def test(overwrite=False):
     # 백테스팅 날짜 계산
     start_date = get_from_date()
     last_date = get_to_date()
@@ -123,7 +123,10 @@ def test():
 
     # ETF 차트 정보 로드
     dfs = []
-    target_etf = get_etf()
+    if overwrite:
+        target_etf = get_etf()
+    else:
+        target_etf = select_tickers()
     for ticker in target_etf:
         print(target_etf[ticker])
         dfs.append({
@@ -135,7 +138,7 @@ def test():
     cut_rate = 0.01
     make_log('정보', '테스트 시작')
     print(start_date, last_date)
-    for i in range(delta+1):
+    for i in range(delta):
         target_tickers = []
         target_tickers_only = []
         now_date = None
@@ -177,13 +180,34 @@ def test():
                     now_df = temp_df[0:period+1]
                     current_price = temp_df['open'].iloc[-1]
                     buy(target_df['ticker'], current_price, balances, change, now_df)
+        
+        if now_date == last_date:
+            break
     
     print(balances)
     print(total_balance())
-    # write_json('./data/', 'balance' + '.json', balances, True)
+    if overwrite:
+        write_json('./data/', 'balance' + '.json', balances, True)
+
+def select_tickers():
+    result = {}
+    check_balance = read_json('./data/', 'balance' + '.json')
+    sort_result = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
+    cnt = 0
+    cut_num = 15
+    all_etf = get_etf()
+    for data in sort_result:
+        name = get_ticker_name(data[0])
+        if data[1]['earning'] > 0:
+            cnt += 1
+            if cnt < cut_num:
+                print(data[0], name, math.ceil(data[1]['earning']))
+                result[data[0]] = name
+            else:
+                break
+    return result
 
 init(exchange="서울")
-test()
+test(overwrite=False)
 
-# get_etf()
-# print(get_df("284980","D","20230221","20180217"))
+# get_etf_from_kis(get_etf())
