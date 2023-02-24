@@ -138,7 +138,7 @@ def get_to_date():
     return datetime.datetime.strptime(date, '%Y%m%d')
 
 
-def get_df(ticker, interval, to_date, from_date='19700101'):
+def get_df(ticker, interval, from_date='19700101', to_date='99991231'):
     sql = "SELECT * FROM trade_data WHERE ticker = '{0}' AND interval = '{1}' AND date <= '{2}' AND date >= '{3}'"
     cur.execute(sql.format(ticker, interval, to_date, from_date))
     ohlcv_data = []

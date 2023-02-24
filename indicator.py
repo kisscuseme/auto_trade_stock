@@ -5,8 +5,8 @@ def get_ma(df, n):
     return df['close'].rolling(window=n).mean()
 
 # 거래량평균선
-def get_va(df, n):
-    return df['volume'].rolling(window=n).mean()
+def get_va(df, n, key='volume'):
+    return df[key].rolling(window=n).mean()
 
 # 노이즈 비율
 def get_noise_ratio(df, n=5):

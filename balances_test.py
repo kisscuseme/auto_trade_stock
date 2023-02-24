@@ -21,9 +21,3 @@ def total_balance():
     for ticker in balances:
         total += balances[ticker]['volume'] * balances[ticker]['avg_buy_price']
     return total
-
-def init_balance(tickers):
-    global balances
-    set_balance('KRW', 500000000, init=True)
-    for ticker in tickers:
-        set_balance(ticker, 0, init=True)

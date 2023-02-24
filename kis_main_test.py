@@ -44,7 +44,8 @@ def insert(df, ticker, interval):
         low = df['low'].iloc[i]
         close = df['close'].iloc[i]
         volume = df['volume'].iloc[i]
-        insert_trade_data(ticker, interval, date, open, high, low, close, volume)
+        value = df['volume'].iloc[i]
+        insert_trade_data(ticker, interval, date, open, high, low, close, volume, value)
     commit()
 
 def get_df_from_kis(ticker, since="", interval="D", count=100):
@@ -121,20 +122,13 @@ def test(overwrite=False):
     from_date = start_date.strftime('%Y%m%d')
     to_date = last_date.strftime('%Y%m%d')
 
-    # ETF 차트 정보 로드
-    dfs = []
     if overwrite:
-        target_etf = get_etf()
-    else:
-        target_etf = select_tickers()
-    for ticker in target_etf:
-        print(target_etf[ticker])
-        dfs.append({
-            "ticker": ticker,
-            "data": get_df(ticker, 'D', to_date, from_date)})
-    
+        to_date = '20191231'
+
+    # ETF 차트 정보 로드
+    dfs = select_tickers(from_date, to_date, overwrite)
+
     # 백테스팅
-    init_balance(target_etf)
     cut_rate = 0.01
     make_log('정보', '테스트 시작')
     print(start_date, last_date)
@@ -170,44 +164,86 @@ def test(overwrite=False):
                     sell(df['ticker'], current_price, balances, now_df)
 
         # 매수 로직
-        adjust_factor = 1 #len(dfs)/(len(dfs) - len(target_tickers))/2
-        change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers)+1)*adjust_factor)
-        # change = math.ceil(get_balance('KRW')['volume']/(len(etf)+1))
-        for target_df in target_tickers:
-            if get_balance(target_df['ticker'])['volume'] == 0:
-                if change > 100000:
-                    temp_df = cut_df(target_df['data'], i, period)
-                    now_df = temp_df[0:period+1]
-                    current_price = temp_df['open'].iloc[-1]
-                    buy(target_df['ticker'], current_price, balances, change, now_df)
+        if len(target_tickers) > 0:
+            adjust_factor = 1 #len(dfs)/(len(dfs) - len(target_tickers))/2
+            change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers))*adjust_factor)
+            # change = math.ceil(get_balance('KRW')['volume']/(len(etf)+1))
+            for target_df in target_tickers:
+                if get_balance(target_df['ticker'])['volume'] == 0:
+                    if change > 100000:
+                        temp_df = cut_df(target_df['data'], i, period)
+                        now_df = temp_df[0:period+1]
+                        current_price = temp_df['open'].iloc[-1]
+                        buy(target_df['ticker'], current_price, balances, change, now_df)
         
-        if now_date == last_date:
+        if now_date.strftime('%Y%m%d') == to_date:
             break
     
     print(balances)
     print(total_balance())
+    term = 1/((len(dfs[0]['data'])-period)/365)
+    avg_rate = (math.pow(total_balance()/500000000, term) - 1) * 100
+    print('연 평균 수익률:', str(avg_rate) + '%')
     if overwrite:
         write_json('./data/', 'balance' + '.json', balances, True)
 
-def select_tickers():
-    result = {}
-    check_balance = read_json('./data/', 'balance' + '.json')
-    sort_result = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
-    cnt = 0
-    cut_num = 15
-    all_etf = get_etf()
-    for data in sort_result:
-        name = get_ticker_name(data[0])
-        if data[1]['earning'] > 0:
+def select_tickers(from_date, to_date, overwrite=False):
+    result_dfs = []
+    if overwrite:
+        target_etf = get_etf()
+        for ticker in target_etf:
+            name = get_ticker_name(ticker)
+            print(name)
+            set_balance(ticker, 0, init=True)
+            result_dfs.append({
+                "ticker": ticker,
+                "data": get_df(ticker, 'D', from_date=from_date, to_date='20191231')})
+    else:
+        check_balance = read_json('./data/', 'balance' + '.json')
+        sort_earning = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
+        cnt = 0
+        cut_num = 10
+        anal_dfs = []
+        temp_dfs = []
+        for data in sort_earning:
+            if data[1]['earning'] > 0:
+                cnt += 1
+                df = get_df(data[0], 'D', from_date=from_date, to_date='20191231')
+                next_df = get_df(data[0], 'D', from_date='20200101', to_date=to_date)
+                va = get_va(df, 1200).iloc[-1] * get_ma(df, 1200).iloc[-1]
+                anal_dfs.append({
+                    "ticker": data[0],
+                    "data": next_df,
+                    "earn": data[1]['earning'],
+                    "va": va,
+                    "earn_rank": cnt
+                })
+        anal_dfs = sorted(anal_dfs, key=lambda df: df['va'], reverse=True)
+        cnt = 0
+        len_dfs = len(anal_dfs)
+        for df in anal_dfs:
             cnt += 1
-            if cnt < cut_num:
-                print(data[0], name, math.ceil(data[1]['earning']))
-                result[data[0]] = name
+            df['va_rank'] = cnt
+            df['total_score'] = (len_dfs-df['earn_rank']+1)*0.7 + (len_dfs-df['va_rank']+1)*0.3
+            temp_dfs.append(df)
+        temp_dfs = sorted(temp_dfs, key=lambda df: df['total_score'], reverse=True)
+        cnt = 0
+        for df in temp_dfs:
+            cnt += 1
+            if cnt <= cut_num:
+                result_dfs.append(df)
             else:
                 break
-    return result
+
+    set_balance('KRW', 500000000, init=True)
+    for df in result_dfs:
+        name = get_ticker_name(df["ticker"])
+        print(name)
+        set_balance(df["ticker"], 0, init=True)
+
+    return result_dfs
 
 init(exchange="서울")
-test(overwrite=False)
+test(overwrite=True)
 
 # get_etf_from_kis(get_etf())
