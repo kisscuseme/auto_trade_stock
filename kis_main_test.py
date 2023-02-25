@@ -122,9 +122,6 @@ def test(overwrite=False):
     from_date = start_date.strftime('%Y%m%d')
     to_date = last_date.strftime('%Y%m%d')
 
-    if overwrite:
-        to_date = '20191231'
-
     # ETF 차트 정보 로드
     dfs = select_tickers(from_date, to_date, overwrite)
 
@@ -143,7 +140,7 @@ def test(overwrite=False):
             now_df = temp_df[0:period+1]
             now_date = now_df.index[-1]
             current_price = temp_df['open'].iloc[-1]
-            if buy_conditions(df['ticker'], now_df, current_price):
+            if buy_conditions(df['ticker'], now_df):
                 target_tickers.append(df)
                 target_tickers_only.append(df['ticker'])
         
@@ -164,10 +161,13 @@ def test(overwrite=False):
                     sell(df['ticker'], current_price, balances, now_df)
 
         # 매수 로직
-        if len(target_tickers) > 0:
+        exist_len = len(list(filter(lambda ticker: balances[ticker]["volume"] > 0 and ticker != "KRW", balances)))
+        if len(target_tickers) - exist_len > 0:
             adjust_factor = 1 #len(dfs)/(len(dfs) - len(target_tickers))/2
-            change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers))*adjust_factor)
-            # change = math.ceil(get_balance('KRW')['volume']/(len(etf)+1))
+            if False: #overwrite:
+                change = math.ceil(get_balance('KRW')['volume']/(len(dfs)-exist_len)) * 0.99
+            else:
+                change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers)-exist_len)*adjust_factor) * 0.99
             for target_df in target_tickers:
                 if get_balance(target_df['ticker'])['volume'] == 0:
                     if change > 100000:
@@ -176,7 +176,7 @@ def test(overwrite=False):
                         current_price = temp_df['open'].iloc[-1]
                         buy(target_df['ticker'], current_price, balances, change, now_df)
         
-        if now_date.strftime('%Y%m%d') == to_date:
+        if (overwrite and now_date.strftime('%Y%m%d') == '20191230') or (not overwrite and now_date.strftime('%Y%m%d') == to_date):
             break
     
     print(balances)
@@ -202,11 +202,13 @@ def select_tickers(from_date, to_date, overwrite=False):
         check_balance = read_json('./data/', 'balance' + '.json')
         sort_earning = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
         cnt = 0
-        cut_num = 10
+        cut_num = 3
+        skip_num = 0
         anal_dfs = []
         temp_dfs = []
         for data in sort_earning:
-            if data[1]['earning'] > 0:
+            name = get_ticker_name(data[0])
+            if data[1]['earning'] > 0 and name.find('인버스') < 0 and name.find('골드') < 0 and name.find('중국') < 0:
                 cnt += 1
                 df = get_df(data[0], 'D', from_date=from_date, to_date='20191231')
                 next_df = get_df(data[0], 'D', from_date='20200101', to_date=to_date)
@@ -230,20 +232,21 @@ def select_tickers(from_date, to_date, overwrite=False):
         cnt = 0
         for df in temp_dfs:
             cnt += 1
-            if cnt <= cut_num:
-                result_dfs.append(df)
+            if cnt <= (cut_num+skip_num):
+                if cnt > skip_num:
+                    result_dfs.append(df)
             else:
                 break
 
     set_balance('KRW', 500000000, init=True)
     for df in result_dfs:
         name = get_ticker_name(df["ticker"])
-        print(name)
+        print(df["ticker"], name)
         set_balance(df["ticker"], 0, init=True)
 
     return result_dfs
 
 init(exchange="서울")
-test(overwrite=True)
+test(overwrite=False)
 
 # get_etf_from_kis(get_etf())

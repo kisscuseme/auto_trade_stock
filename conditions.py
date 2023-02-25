@@ -24,7 +24,7 @@ def sell_conditions(pTicker, current_price, inTime=True):
         return False
 
 # 매수 조건
-def buy_conditions(pTicker, df, current_price):
+def buy_conditions(pTicker, df):
     target_list = [] 
     target_list.append('290130')
     
@@ -34,13 +34,13 @@ def buy_conditions(pTicker, df, current_price):
             find_ticker = True
 
     if find_ticker:
-        ret_val = etf_buy_condition(pTicker, df, current_price)
+        ret_val = etf_buy_conditions(pTicker, df)
     else:
-        ret_val = etf_buy_condition(pTicker, df, current_price)
+        ret_val = etf_buy_conditions(pTicker, df)
 
     return ret_val
 
-def etf_buy_condition(pTicker, df, current_price):
+def etf_buy_conditions(pTicker, df):
     try:
         if len(df) > 20:
             ma1 = get_ma(df, 1)
@@ -61,7 +61,6 @@ def etf_buy_condition(pTicker, df, current_price):
             # 최초 매수 시 체크
             cond_va = True
             cond_gc = True
-            cond_bal = True
             balance = get_balance(pTicker) 
 
             if balance['volume'] == 0:
@@ -77,7 +76,7 @@ def etf_buy_condition(pTicker, df, current_price):
                 
                 cond = cond_init and cond_after and cond_va
             else:
-                cond = etf_after_buy_conditions(pTicker, df) and cond_bal
+                cond = etf_buy_conditions_from_etc(pTicker, df) and etf_buy_conditions_from_eth(pTicker, df)
 
             make_log('정보', '{} 매수 조건 cond => {}'.format(pTicker, cond), detailOnly=True)
             return cond           
@@ -90,7 +89,7 @@ def etf_buy_condition(pTicker, df, current_price):
         make_log(vType, log, detailOnly=True)
         return False
 
-def etf_after_buy_conditions(pTicker, df):
+def etf_buy_conditions_from_etc(pTicker, df):
     try:
         if len(df) > 20:
             # ia3 = get_ichimoku(df, 3)
@@ -417,5 +416,46 @@ def etf_after_buy_conditions(pTicker, df):
     except Exception as ex:
         vType = '에러'
         log = 'buy_conditions error! : ' + pTicker + ' : ' + traceback.format_exc()
+        make_log(vType, log, detailOnly=True)
+        return False
+
+def etf_buy_conditions_from_eth(pTicker, df):
+    try:
+        if len(df) > 20:
+            ma20 = get_ma(df, 20)
+            ma15 = get_ma(df, 15)
+            ma10 = get_ma(df, 10)
+            ma5 = get_ma(df, 5)
+            ma3 = get_ma(df, 3)
+            ma1 = get_ma(df, 1)
+            macd = get_macd(df)
+            
+            cond_macd = macd['macd'].iloc[-1] > macd['macd_signal'].iloc[-1] and macd['macd'].iloc[-1] > 0
+
+            cond1_1 = ma3.iloc[-1] < ma1.iloc[-1] and ma5.iloc[-1] < ma1.iloc[-1] and ma10.iloc[-1] < ma1.iloc[-1]
+            cond1_2 = ma15.iloc[-1] < ma1.iloc[-1] and ma20.iloc[-1] < ma1.iloc[-1]
+            cond1 = cond1_1 and cond1_2
+            cond2_1 = ma5.iloc[-1] < ma3.iloc[-1] and ma10.iloc[-1] < ma5.iloc[-1]
+            cond2_2 = ma15.iloc[-1] < ma10.iloc[-1] and ma20.iloc[-1] < ma15.iloc[-1]
+            cond2 = cond2_1 and (cond2_2 and cond_macd)
+            cond3_1 = (ma3.iloc[-2] < ma5.iloc[-2] and ma3.iloc[-1] > ma5.iloc[-1]) or (ma3.iloc[-2] < ma10.iloc[-2] and ma3.iloc[-1] > ma10.iloc[-1])
+            cond3_2 = (ma3.iloc[-2] < ma15.iloc[-2] and ma3.iloc[-1] > ma15.iloc[-1]) or (ma3.iloc[-2] < ma20.iloc[-2] and ma3.iloc[-1] > ma20.iloc[-1])
+            cond3 = cond3_1 or cond3_2
+            cond4 = ma3.iloc[-2] < ma3.iloc[-1] and ma5.iloc[-2] < ma5.iloc[-1] and ma10.iloc[-2] < ma10.iloc[-1]
+            
+            cond = cond1 or cond2 or (cond3 and cond4)
+            
+            log_msg1 = 'ma20: ' + get_num_to_str(ma20.iloc[-1]) + ', ma5: ' + get_num_to_str(ma5.iloc[-1]) + ', ma3: ' + get_num_to_str(ma3.iloc[-1])
+            log_msg2 = 'price: ' + get_num_to_str(df['close'].iloc[-1])
+            log_msg3 = 'method: ' + 'eth_buy_conditions'
+            make_log('정보', pTicker + ' 매수 조건 ' + log_msg1 + ', ' + log_msg2 + ', ' + log_msg3, detailOnly=True)
+            
+            return cond        
+        else:
+            make_log('정보', '거래 데이터 정보 부족, 매수 안 함', detailOnly=True)
+            return False
+    except Exception as ex:
+        vType = '에러'
+        log = 'new_buy_conditions error! : ' + pTicker + ' : ' + traceback.format_exc()
         make_log(vType, log, detailOnly=True)
         return False
