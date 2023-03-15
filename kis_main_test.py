@@ -44,8 +44,7 @@ def insert(df, ticker, interval):
         low = df['low'].iloc[i]
         close = df['close'].iloc[i]
         volume = df['volume'].iloc[i]
-        value = df['volume'].iloc[i]
-        insert_trade_data(ticker, interval, date, open, high, low, close, volume, value)
+        insert_trade_data(ticker, interval, date, open, high, low, close, volume)
     commit()
 
 def get_df_from_kis(ticker, since="", interval="D", count=100):
@@ -111,6 +110,82 @@ def get_etf_from_kis(etf_dict, continue_ticker="0"):
 
 def cut_df(df, index, preiod=20):
     return df[index:preiod+index+2]
+
+def select_tickers(from_date, to_date, overwrite=False,fixed=False,update=False):
+    result_dfs = []
+    if fixed:
+        # KODEX 코스닥150선물인버스 251340
+        short_ticker = "251340"
+        if update:
+            get_df_from_kis(short_ticker, count=1200)
+        result_dfs.append({
+            "ticker": short_ticker,
+            "data": get_df(short_ticker, 'D', from_date=from_date, to_date='99991231')})
+        time.sleep(1)
+        # KODEX 코스닥150레버리지 233740
+        long_ticker = "233740"
+        if update:
+            get_df_from_kis(long_ticker, count=1200)
+        result_dfs.append({
+            "ticker": long_ticker,
+            "data": get_df(long_ticker, 'D', from_date=from_date, to_date='99991231')})
+        return result_dfs
+    if overwrite:
+        target_etf = get_etf()
+        for ticker in target_etf:
+            name = get_ticker_name(ticker)
+            print(name)
+            set_balance(ticker, 0, init=True)
+            result_dfs.append({
+                "ticker": ticker,
+                "data": get_df(ticker, 'D', from_date=from_date, to_date='20191231')})
+    else:
+        check_balance = read_json('./data/', 'balance' + '.json')
+        sort_earning = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
+        cnt = 0
+        cut_num = 3
+        skip_num = 0
+        anal_dfs = []
+        temp_dfs = []
+        for data in sort_earning:
+            name = get_ticker_name(data[0])
+            if data[1]['earning'] > 0 and name.find('인버스') < 0 and name.find('골드') < 0 and name.find('중국') < 0:
+                cnt += 1
+                df = get_df(data[0], 'D', from_date=from_date, to_date='20191231')
+                next_df = get_df(data[0], 'D', from_date='20200101', to_date=to_date)
+                va = get_va(df, 1200).iloc[-1] * get_ma(df, 1200).iloc[-1]
+                anal_dfs.append({
+                    "ticker": data[0],
+                    "data": next_df,
+                    "earn": data[1]['earning'],
+                    "va": va,
+                    "earn_rank": cnt
+                })
+        anal_dfs = sorted(anal_dfs, key=lambda df: df['va'], reverse=True)
+        cnt = 0
+        len_dfs = len(anal_dfs)
+        for df in anal_dfs:
+            cnt += 1
+            df['va_rank'] = cnt
+            df['total_score'] = (len_dfs-df['earn_rank']+1)*0.7 + (len_dfs-df['va_rank']+1)*0.3
+            temp_dfs.append(df)
+        temp_dfs = sorted(temp_dfs, key=lambda df: df['total_score'], reverse=True)
+        cnt = 0
+        for df in temp_dfs:
+            cnt += 1
+            if cnt <= (cut_num+skip_num):
+                if cnt > skip_num:
+                    result_dfs.append(df)
+            else:
+                break
+
+    set_balance('KRW', 500000000, init=True)
+    for df in result_dfs:
+        name = get_ticker_name(df["ticker"])
+        print(df["ticker"], name)
+        set_balance(df["ticker"], 0, init=True)
+
+    return result_dfs
 
 def test(overwrite=False):
     # 백테스팅 날짜 계산
@@ -187,66 +262,29 @@ def test(overwrite=False):
     if overwrite:
         write_json('./data/', 'balance' + '.json', balances, True)
 
-def select_tickers(from_date, to_date, overwrite=False):
-    result_dfs = []
-    if overwrite:
-        target_etf = get_etf()
-        for ticker in target_etf:
-            name = get_ticker_name(ticker)
-            print(name)
-            set_balance(ticker, 0, init=True)
-            result_dfs.append({
-                "ticker": ticker,
-                "data": get_df(ticker, 'D', from_date=from_date, to_date='20191231')})
-    else:
-        check_balance = read_json('./data/', 'balance' + '.json')
-        sort_earning = sorted(check_balance.items(), key = lambda item: item[1]['earning'], reverse=True)
-        cnt = 0
-        cut_num = 3
-        skip_num = 0
-        anal_dfs = []
-        temp_dfs = []
-        for data in sort_earning:
-            name = get_ticker_name(data[0])
-            if data[1]['earning'] > 0 and name.find('인버스') < 0 and name.find('골드') < 0 and name.find('중국') < 0:
-                cnt += 1
-                df = get_df(data[0], 'D', from_date=from_date, to_date='20191231')
-                next_df = get_df(data[0], 'D', from_date='20200101', to_date=to_date)
-                va = get_va(df, 1200).iloc[-1] * get_ma(df, 1200).iloc[-1]
-                anal_dfs.append({
-                    "ticker": data[0],
-                    "data": next_df,
-                    "earn": data[1]['earning'],
-                    "va": va,
-                    "earn_rank": cnt
-                })
-        anal_dfs = sorted(anal_dfs, key=lambda df: df['va'], reverse=True)
-        cnt = 0
-        len_dfs = len(anal_dfs)
-        for df in anal_dfs:
-            cnt += 1
-            df['va_rank'] = cnt
-            df['total_score'] = (len_dfs-df['earn_rank']+1)*0.7 + (len_dfs-df['va_rank']+1)*0.3
-            temp_dfs.append(df)
-        temp_dfs = sorted(temp_dfs, key=lambda df: df['total_score'], reverse=True)
-        cnt = 0
-        for df in temp_dfs:
-            cnt += 1
-            if cnt <= (cut_num+skip_num):
-                if cnt > skip_num:
-                    result_dfs.append(df)
-            else:
-                break
+def test_trading():
+    # 백테스팅 날짜 계산
+    start_date = get_from_date()
+    last_date = get_to_date()
+    delta = 1200
+    period = 120
 
-    set_balance('KRW', 500000000, init=True)
-    for df in result_dfs:
-        name = get_ticker_name(df["ticker"])
-        print(df["ticker"], name)
-        set_balance(df["ticker"], 0, init=True)
+    from_date = start_date.strftime('%Y%m%d')
+    to_date = last_date.strftime('%Y%m%d')
 
-    return result_dfs
+    # ETF 차트 정보 로드
+    dfs = select_tickers(from_date, to_date, fixed=True)
+
+    print(dfs)
 
 init(exchange="서울")
-test(overwrite=False)
+# test(overwrite=False)
+test_trading()
+
+# test_data = kis.fetch_kospi_symbols()
+# etf_tickers = test_data[test_data['그룹코드'] == 'EF']
+# get_df_from_kis('251340', count=1200)
+# print(etf_tickers[etf_tickers['단축코드'] == '251340']['상장일자'])
+# print(get_df('251340', 'D', from_date='20180101', to_date='20230315'))
 
 # get_etf_from_kis(get_etf())
