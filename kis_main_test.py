@@ -114,6 +114,13 @@ def cut_df(df, index, preiod=20):
 def select_tickers(from_date, to_date, overwrite=False,fixed=False,update=False):
     result_dfs = []
     if fixed:
+        # KODEX 코스닥150레버리지 233740
+        long_ticker = "233740"
+        if update:
+            get_df_from_kis(long_ticker, count=1200)
+        result_dfs.append({
+            "ticker": long_ticker,
+            "data": get_df(long_ticker, 'D', from_date=from_date, to_date='99991231')})
         # KODEX 코스닥150선물인버스 251340
         short_ticker = "251340"
         if update:
@@ -122,15 +129,7 @@ def select_tickers(from_date, to_date, overwrite=False,fixed=False,update=False)
             "ticker": short_ticker,
             "data": get_df(short_ticker, 'D', from_date=from_date, to_date='99991231')})
         time.sleep(1)
-        # KODEX 코스닥150레버리지 233740
-        long_ticker = "233740"
-        if update:
-            get_df_from_kis(long_ticker, count=1200)
-        result_dfs.append({
-            "ticker": long_ticker,
-            "data": get_df(long_ticker, 'D', from_date=from_date, to_date='99991231')})
-        return result_dfs
-    if overwrite:
+    elif overwrite:
         target_etf = get_etf()
         for ticker in target_etf:
             name = get_ticker_name(ticker)
@@ -186,6 +185,13 @@ def select_tickers(from_date, to_date, overwrite=False,fixed=False,update=False)
         set_balance(df["ticker"], 0, init=True)
 
     return result_dfs
+
+def cal_date(yyyymmdd, delta):
+    year = int(yyyymmdd[0:4])
+    month = int(yyyymmdd[4:6])
+    day = int(yyyymmdd[6:8])
+    
+    return (datetime.datetime(year, month, day) + datetime.timedelta(1+delta)).strftime("%Y%m%d")
 
 def test(overwrite=False):
     # 백테스팅 날짜 계산
@@ -262,7 +268,7 @@ def test(overwrite=False):
     if overwrite:
         write_json('./data/', 'balance' + '.json', balances, True)
 
-def test_trading():
+def test_trading(update=False):
     # 백테스팅 날짜 계산
     start_date = get_from_date()
     last_date = get_to_date()
@@ -273,9 +279,65 @@ def test_trading():
     to_date = last_date.strftime('%Y%m%d')
 
     # ETF 차트 정보 로드
-    dfs = select_tickers(from_date, to_date, fixed=True)
+    dfs = select_tickers(from_date, to_date, fixed=True, update=update)
 
-    print(dfs)
+    # 백테스팅
+    cut_rate = 0.015
+    make_log('정보', '테스트 시작')
+    print(start_date, last_date)
+    print(balances)
+    for i in range(delta):
+        target_tickers = []
+        target_tickers_only = []
+        now_date = None
+
+        # 매수 대상 선정
+        # KODEX 코스닥150레버리지 233740
+        # KODEX 코스닥150선물인버스 251340
+        df_base = dfs[0]
+        df_opp = dfs[1]
+        temp_df = cut_df(df_base['data'], i, period)
+        now_df = temp_df[0:period+1]
+        now_date = now_df.index[-1]
+        current_price = temp_df['open'].iloc[-1]
+        if buy_conditions(df_base['ticker'], now_df):
+            target_tickers.append(df_base)
+            target_tickers_only.append(df_base['ticker'])
+        # else:
+        #     target_tickers.append(df_opp)
+        #     target_tickers_only.append(df_opp['ticker'])
+        
+        print(now_date, len(target_tickers))
+
+        # 매도 로직
+        for df in dfs:
+            if get_balance(df['ticker'])['volume'] != 0:
+                temp_df = cut_df(df['data'], i, period)
+                now_df = temp_df[0:period+1]
+                current_price = temp_df['open'].iloc[-1]
+                low_price = temp_df['low'].iloc[-1]
+                avg_buy_price = balances[df['ticker']]['avg_buy_price']
+                now_rate = (avg_buy_price - low_price)/avg_buy_price
+                if now_rate > cut_rate:
+                    sell(df['ticker'], avg_buy_price*(1-cut_rate), balances, now_df)
+                elif df['ticker'] not in target_tickers_only or sell_conditions(df['ticker'], current_price, False):
+                    sell(df['ticker'], current_price, balances, now_df)
+
+        # 매수 로직
+        exist_len = len(list(filter(lambda ticker: balances[ticker]["volume"] > 0 and ticker != "KRW", balances)))
+        if len(target_tickers) - exist_len > 0:
+            adjust_factor = 1
+            change = math.ceil(get_balance('KRW')['volume']/(len(target_tickers)-exist_len)*adjust_factor) * 0.99
+            for target_df in target_tickers:
+                if get_balance(target_df['ticker'])['volume'] == 0:
+                    if change > 100000:
+                        temp_df = cut_df(target_df['data'], i, period)
+                        now_df = temp_df[0:period+1]
+                        current_price = temp_df['open'].iloc[-1]
+                        buy(target_df['ticker'], current_price, balances, change, now_df)
+        
+        if now_date.strftime('%Y%m%d') == to_date:
+            break
 
 init(exchange="서울")
 # test(overwrite=False)

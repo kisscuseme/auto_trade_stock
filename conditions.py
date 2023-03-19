@@ -34,9 +34,9 @@ def buy_conditions(pTicker, df):
             find_ticker = True
 
     if find_ticker:
-        ret_val = etf_buy_conditions(pTicker, df)
+        ret_val = etf_buy_conditions_from_eth(pTicker, df)
     else:
-        ret_val = etf_buy_conditions(pTicker, df)
+        ret_val = etf_buy_conditions_from_eth(pTicker, df)
 
     return ret_val
 
