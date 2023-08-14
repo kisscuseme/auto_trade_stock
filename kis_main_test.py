@@ -339,9 +339,23 @@ def test_trading(update=False):
         if now_date.strftime('%Y%m%d') == to_date:
             break
 
+def test_accum(update=False):
+    # 백테스팅 날짜 계산
+    start_date = get_from_date()
+    last_date = get_to_date()
+    delta = 1200
+    period = 120
+
+    from_date = start_date.strftime('%Y%m%d')
+    to_date = last_date.strftime('%Y%m%d')
+
+    # ETF 차트 정보 로드
+    dfs = select_tickers(from_date, to_date, fixed=True, update=update)
+
 init(exchange="서울")
+
 # test(overwrite=False)
-test_trading()
+# test_trading()
 
 # test_data = kis.fetch_kospi_symbols()
 # etf_tickers = test_data[test_data['그룹코드'] == 'EF']
